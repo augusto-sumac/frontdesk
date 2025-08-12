@@ -97,7 +97,7 @@
                             <div class="col-md-4">
                                 <div class="mb-3">
                                     <label for="country" class="form-label">País *</label>
-                                    <input type="text" class="form-control" id="country" name="country" value="Brasil" required>
+                                    <input type="text" class="form-control" id="country" name="country" value="BR" disabled="disabled">
                                 </div>
                             </div>
                             <div class="col-md-6">
