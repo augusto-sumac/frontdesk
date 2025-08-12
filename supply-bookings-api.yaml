@@ -1,0 +1,2070 @@
+openapi: 3.0.1
+info:
+  title: NextPax Bookings API
+  description: |
+    **NextPax -  Supply API specification** 
+
+    This documentation shares the details for Reservation Management endpoints needed to be implemented by the supply partners to retrieve or process NextPax reservations. 
+
+    **Authentication - Bearer token Authentication (X-Api-Token)**
+
+    NextPax Bookings API requires an access token for using the provided endpoints. Each supply partner will be
+    issued a unique X-API-Token per environment that will allow access.
+  contact:
+    name: NextPax
+    url: https://nextpax.com/
+    email: support.api@nextpax.com
+  license:
+    name: NextPax License
+    url: https://nextpax.com/
+  version: 1.0.0
+servers:
+  - url: https://pci.nextpax.com/supply
+    description: '[PRODUCTION server]'
+  - url: https://pci.sandbox.nextpax.com/supply
+    description: '[SANDBOX server]'
+paths:
+  /bookings:
+    get:
+      tags:
+        - Bookings
+      summary: Retrieve supplier reservations
+      description: This endpoint allows to retrieve all supplier reservations as well as only those after a certain timestamp.
+      operationId: getBookings
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: query
+          name: propertyManager
+          description: This is the NextPax property manager code.
+          schema:
+            type: string
+            format: string
+          required: true
+        - in: query
+          name: onlyNew
+          description: Optional flag to only retrieve new bookings that were not pulled before.
+          schema:
+            type: boolean
+          required: false
+        - in: query
+          name: modifiedSince
+          description: Optional timestamp to indicate from when to receive modified bookings (status created, updated, cancelled)
+          example: "2022-01-01T00:00:01Z"
+          schema:
+            type: string
+            format: timestamp
+          required: false
+      responses:
+        200:
+          description: The request will return IDs for all (new) bookings as well as modified ones taking into consideration the optional parameters when used.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bookingId:
+                          type: string
+                          example: "95e0136f-4dfa-4fb3-a491-198478c14979"
+                          description: This is the NextPax booking id.
+                        bookingNumber:
+                          type: string
+                          example: '777887888'
+                          description: This is the supplier reservation identifier or booking number.
+                        state:
+                          type: string
+                          example: 'cancelled'
+                          description: Shows the status of the reservation. Possible states include reservation, pending, modified, cancelled, failure, request, request-accepted, request-rejected, and request-booked.
+                        remarks:
+                          type: string
+                          example: "I am arriving at 8PM and need parking."
+                          description: This optional field may indicate customer remarks.
+                        rateplanId:
+                          type: integer
+                          description: This field indicates the rateplan id associated with this booking.
+                          example: 123
+                        lastModified:
+                          type: string
+                          format: timestamp
+                          example: "2021-01-01T02:02:01Z"
+                          description: Indicates when the booking was last updated or modified.
+                        paymentDetailsLastModified:
+                          type: string
+                          format: timestamp
+                          example: "2021-01-01T02:02:01Z"
+                          description: Indicates when the booking payment details was last updated or modified.
+                  result:
+                    type: string
+                    example: 'success'
+                    description: Indicates that the request was successful
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+        400:
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect property manager code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Incorrect propertyManager code"
+                  result:
+                    type: string
+                    example: 'failure'
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+    post:
+      tags:
+        - Bookings
+      summary: Create an offline booking
+      description: You have to either sent the NextPax Property Id or your own property reference (in field ) The channelId indicates the channel to which the booking belongs, e.g. HOM143 = HomeAway, BOO142 = Booking.com and so on. This list of channels is accessible via the Supply API.
+      parameters:
+        - in: header
+          name: X-Api-Token
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+                - payload
+              properties:
+                query:
+                  type: string
+                  example: 'propertyManagerBooking'
+                  description: This is the requested operation. Always propertyManagerBooking for this endpoint.
+                payload:
+                  type: object
+                  required:
+                    - bookingNumber
+                    - channelPartnerReference
+                    - channelId
+                    - period
+                    - occupancy
+                    - stayPrice
+                    - mainBooker
+                    - payment
+                    - propertyManager
+                  properties:
+                    bookingNumber:
+                      type: string
+                      example: '7654321'
+                      description: This is the supplier reservation identifier or booking number.
+                    propertyManager:
+                      type: string
+                      example: SANXP000001
+                      description: This is the NextPax property manager code.
+                    channelPartnerReference:
+                      type: string
+                      example: '12345678-87654321'
+                      description: This is the distribution channel reservation identifier or booking number.
+                    supplierPropertyId:
+                      type: string
+                      example: 'A12345'
+                      description: This is the supplier property reference or property id.
+                    channelId:
+                      type: string
+                      example: 'HOM143'
+                      description: This is the NextPax channel id. The complete list of channels is accessible via the Supply API.
+                    propertyId:
+                      type: string
+                      format: uuid
+                      example: '1234-aaaabc-aaaaa-22235aa'
+                      description: This is the NextPax property id.
+                    rateplanId:
+                      type: integer
+                      description: This field indicates the rateplan id associated with this booking.
+                      example: 123
+                    remarks:
+                      type: string
+                      example: "I am arriving at 8PM and need parking."
+                      description: This optional field may indicate customer remarks.
+                    period:
+                      type: object
+                      required:
+                        - arrivalDate
+                        - departureDate
+                      properties:
+                        arrivalDate:
+                          type: string
+                          example: '2022-06-01'
+                          description: This is the checkin date of the reservation.
+                        departureDate:
+                          type: string
+                          example: '2022-06-08'
+                          description: This is the checkout date of the reservation.
+                    occupancy:
+                      type: object
+                      required:
+                        - adults
+                        - children
+                        - babies
+                        - pets
+                      properties:
+                        adults:
+                          type: integer
+                          example: 4
+                          description: This is the total number of adults booked on the reservation.
+                        children:
+                          type: integer
+                          example: 1
+                          description: This is the total number of children booked on the reservation.
+                        babies:
+                          type: integer
+                          example: 0
+                          description: This is the total number of babies or infants booked on the reservation.
+                        pets:
+                          type: integer
+                          example: 0
+                          description: This is the total number of pets booked on the reservation.
+                    stayPrice:
+                      type: object
+                      required:
+                        - amount
+                        - currency
+                      properties:
+                        amount:
+                          type: number
+                          example: 100.50
+                          description: This is the final price of the reservation.
+                        currency:
+                          type: string
+                          example: 'USD'
+                          description: This is the currency of the reservation in 3 letter code format. Please see the currencies listed in the Supply API.
+                    mainBooker:
+                      type: object
+                      required:
+                        - surname
+                        - letters
+                        - firstName
+                        - countryCode
+                        - language
+                        - zipCode
+                        - houseNumber
+                        - street
+                        - place
+                        - phoneNumber
+                        - email
+                        - dateOfBirth
+                      properties:
+                        surname:
+                          type: string
+                          example: 'Bos'
+                          description: The surname of the main booker.
+                        letters:
+                          type: string
+                          example: 'J'
+                          description: The initials of the main booker.
+                        titleCode:
+                          type: string
+                          example: 'male'
+                          description: The title of the main booker.
+                        firstName:
+                          type: string
+                          example: 'Jan'
+                          description: The first name of the main booker.
+                        countryCode:
+                          type: string
+                          example: 'NL'
+                          description: The country code of the main booker in 2 letter format. Please see the countries endpoint in the Supply API for all values.
+                        language:
+                          type: string
+                          example: 'nl'
+                          description: The language code of the main booker in 2 letter format. Please see the languages endpoint in the Supply API for all values.
+                        zipCode:
+                          type: string
+                          example: '1234AB'
+                          description: The zipcode of the main booker.
+                        houseNumber:
+                          type: string
+                          example: '1'
+                          description: The house or street number of the main booker.
+                        street:
+                          type: string
+                          example: 'Kerkstraat'
+                          description: The address or street of the main booker.
+                        place:
+                          type: string
+                          example: 'Amsterdam'
+                          description: The city or place address of the main booker.
+                        phoneNumber:
+                          type: string
+                          example: '0612245667'
+                          description: The contact phone number of the main booker.
+                        email:
+                          type: string
+                          example: 'test@tester.nl'
+                          description: The email address of the main booker.
+                        dateOfBirth:
+                          type: string
+                          example: '1980-01-01'
+                          description: The date of birth of the main booker.
+                    payment:
+                      type: object
+                      required:
+                        - type
+                      properties:
+                        type:
+                          type: string
+                          enum:
+                            - creditcard
+                            - default
+                          example: 'creditcard'
+                          description: Indicates the type of payment method associated with this booking.
+                    articles:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - code
+                          - pricePerUnit
+                          - currency
+                          - amount
+                        properties:
+                          code:
+                            type: string
+                            example: 'TWP'
+                            description: Denotes the NextPax fee code associated for this article. Please see the mapping codes endpoint in the Supply API for all values possible.
+                          pricePerUnit:
+                            type: integer
+                            example: 0
+                            description: Cost or price per unit of article.
+                          currency:
+                            type: string
+                            example: 'EUR'
+                            description: Indicates the currency for the article with a 3 letter format. Please see currencies endpoint in the Supply API for all values.
+                          amount:
+                            type: integer
+                            example: 0
+                            description: Indicates the amount of articles of this type booked.
+                      example:
+                        - code: 'TWP'
+                          pricePerUnit: 5
+                          currency: 'EUR'
+                          amount: 5
+                        - code: 'PET'
+                          pricePerUnit: 50.90
+                          currency: 'EUR'
+                          amount: 1
+      responses:
+        200:
+          description: The mainBooker.dateOfBirth element should be 1900-01-01 or later, if your guest is over 118 years old we're happy to process the booking manually. The mainBooker.letters element contains the initials of the guest. If you don't know them, please use the first letter of the mainBooker.firstName. The mainBooker.titleCode can be either "male", "female" or "family". bookingNumber in the response will be the same as the bookingNumber you provided. Please make sure that there are no quotes around the value for the "amount" field in articles, otherwise you'll get an error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: '0000000-0000-0000-0000-000000000000'
+                        description: This is the NextPax booking id.
+                      state:
+                        type: string
+                        example: 'reservation'
+                        description: Indicates the state of the newly created reservation. Always reservation returned.
+                      success:
+                        type: boolean
+                        example: true
+                        description: Indicates if the reservation was created successfully.
+                      bookingNumber:
+                        type: integer
+                        example: 9999999
+                        description: This is the same supplier booking number that was provided in the request.
+                  result:
+                    type: string
+                    example: 'success'
+        400:
+          description: Indicates that there is an issue validating and or processing the request. Reasons may be wrong formatting, missing information or invalid data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Missing mainBooker.street"
+                  result:
+                    type: string
+                    example: 'failure'
+  /bookings/{bookingId}:
+    get:
+      tags:
+        - Bookings
+      summary: Retrieves a specific reservation
+      description: This endpoint allows to retrieve specific supplier reservation and relevant information for that booking. The endpoint requires a NextPax booking id in the path.
+      operationId: getBookingDetails
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: bookingId
+          description: This is the NextPax booking id.
+          schema:
+            type: string
+            format: string
+          required: true
+        - in: query
+          name: propertyManager
+          description: This is the NextPax property manager code.
+          schema:
+            type: string
+            format: string
+          required: true
+        - in: query
+          name: showCancellationOptions
+          description: You can use this parameter to get cancellation options for bookings. Information will be returned only for channels where the booking can be cancelled by host and reasons or options are available. Currently only supported for Airbnb bookings.
+          schema:
+            type: boolean
+          required: false
+      responses:
+        200:
+          description: The request will return information for the whole booking.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      bookingId:
+                        type: string
+                        example: "95e0136f-4dfa-4fb3-a491-198478c14979"
+                        description: This is the NextPax booking id.
+                      bookingNumber:
+                        type: string
+                        example: '7654321'
+                        description: This is the supplier reservation identifier or booking number.
+                      channelPartnerReference:
+                        type: string
+                        example: '12345678-87654321'
+                        description: This is the distribution channel reservation identifier or booking number.
+                      status:
+                        type: string
+                        example: reservation
+                        description: Shows the status of the reservation. Possible states include reservation, pending, modified, cancelled, failure, request, request-accepted, request-rejected, and request-booked.
+                      supplierPropertyId:
+                        type: string
+                        example: 'A12345'
+                        description: This is the supplier property reference or property id.
+                      channelId:
+                        type: string
+                        example: 'HOM143'
+                        description: This is the NextPax channel id. The complete list of channels is accessible via the Supply API.
+                      propertyId:
+                        type: string
+                        format: uuid
+                        example: '1234-aaaabc-aaaaa-22235aa'
+                        description: This is the NextPax property id.
+                      quantity:
+                        type: integer
+                        example: 1
+                        description: This is the number of units booked.
+                      rateplanId:
+                        type: integer
+                        description: This field indicates the rateplan id associated with this booking.
+                        example: 123
+                      period:
+                        type: object
+                        required:
+                          - arrivalDate
+                          - departureDate
+                        properties:
+                          arrivalDate:
+                            type: string
+                            example: '2022-06-01'
+                            description: This is the checkin date of the reservation.
+                          departureDate:
+                            type: string
+                            example: '2022-06-08'
+                            description: This is the checkout date of the reservation.
+                      occupancy:
+                        type: object
+                        required:
+                          - adults
+                          - children
+                          - babies
+                          - pets
+                        properties:
+                          adults:
+                            type: integer
+                            example: 4
+                            description: This is the total number of adults booked on the reservation.
+                          children:
+                            type: integer
+                            example: 1
+                            description: This is the total number of children booked on the reservation.
+                          babies:
+                            type: integer
+                            example: 0
+                            description: This is the total number of babies or infants booked on the reservation.
+                          pets:
+                            type: integer
+                            example: 0
+                            description: This is the total number of pets booked on the reservation.
+                      stayPrice:
+                        type: object
+                        required:
+                          - amount
+                          - currency
+                        properties:
+                          amount:
+                            type: number
+                            example: 100.50
+                            description: This is the final price of the reservation.
+                          currency:
+                            type: string
+                            example: 'USD'
+                            description: This is the currency of the reservation in 3 letter code format. Please see the currencies listed in the Supply API.
+                      rentOnly:
+                        type: object
+                        required:
+                          - amount
+                        properties:
+                          amount:
+                            type: number
+                            example: 90.50
+                            description: This is the rent only price of the reservation.
+                      mainBooker:
+                        type: object
+                        required:
+                          - surname
+                          - letters
+                          - titleCode
+                          - firstName
+                          - countryCode
+                          - language
+                          - zipCode
+                          - houseNumber
+                          - street
+                          - place
+                          - phoneNumber
+                          - email
+                          - dateOfBirth
+                        properties:
+                          surname:
+                            type: string
+                            example: 'Doe'
+                            description: The surname of the main booker.
+                          letters:
+                            type: string
+                            example: 'J'
+                            description: The initials of the main booker.
+                          titleCode:
+                            type: string
+                            example: 'male'
+                            description: The title of the main booker.
+                          firstName:
+                            type: string
+                            example: 'John'
+                            description: The first name of the main booker.
+                          countryCode:
+                            type: string
+                            example: 'NL'
+                            description: The country code of the main booker in 2 letter format. Please see the countries endpoint in the Supply API for all values.
+                          language:
+                            type: string
+                            example: 'nl'
+                            description: The language code of the main booker in 2 letter format. Please see the languages endpoint in the Supply API for all values.
+                          zipCode:
+                            type: string
+                            example: '1234AB'
+                            description: The zipcode of the main booker.
+                          houseNumber:
+                            type: string
+                            example: '1'
+                            description: The house or street number of the main booker.
+                          street:
+                            type: string
+                            example: 'Wonder street 2'
+                            description: The address or street of the main booker.
+                          place:
+                            type: string
+                            example: 'Amsterdam'
+                            description: The city or place address of the main booker.
+                          phoneNumber:
+                            type: string
+                            example: '+31612245667'
+                            description: The contact phone number of the main booker.
+                          email:
+                            type: string
+                            example: 'test@tester.nl'
+                            description: The email address of the main booker.
+                          dateOfBirth:
+                            type: string
+                            example: '1980-01-01'
+                            description: The date of birth of the main booker.
+                      payment:
+                        type: object
+                        required:
+                          - type
+                          - isPrepaid
+                          - isVirtual
+                          - activationDate
+                          - amountBalance
+                        properties:
+                          type:
+                            type: string
+                            enum:
+                              - creditcard
+                              - default
+                            example: 'creditcard'
+                            description: Indicates the type of payment method associated with this booking.
+                          isPrepaid:
+                            type: boolean
+                            example: false
+                            nullable: true
+                            description: Indicates if this is pre-paid on the channel
+                          isVirtual:
+                            type: boolean
+                            example: false
+                            nullable: true
+                            description: Indicates if this is a virtual credit card (provided that the channel delivered this information)
+                          activationDate:
+                            type: string
+                            example: '2099-01-01'
+                            nullable: true
+                            description: From which date can this (virtual) credit card be charged
+                          amountBalance:
+                            type: number
+                            example: 125.00
+                            nullable: true
+                            description: The maximum balance of the (virtual) credit card. You can not charge more than this balance
+                      remarks:
+                        type: string
+                        example: "I am arriving at 8PM and need parking."
+                        description: This optional field may indicate customer remarks.
+                      articles:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - code
+                            - pricePerUnit
+                            - currency
+                            - quantity
+                            - totalAmount
+                            - taxAmount
+                          properties:
+                            code:
+                              type: string
+                              example: 'TWP'
+                              description: Denotes the NextPax fee code associated for this article. Please see the mapping codes endpoint in the Supply API for all values possible.
+                            pricePerUnit:
+                              type: integer
+                              example: 0
+                              description: Cost or price per unit of article in cents.
+                            currency:
+                              type: string
+                              example: 'EUR'
+                              description: Indicates the currency for the article with a 3 letter format. Please see currencies endpoint in the Supply API for all values.
+                            quantity:
+                              type: integer
+                              example: 0
+                              description: Indicates the amount of articles of this type booked.
+                            totalAmount:
+                              type: integer
+                              example: 0
+                              description: Indicates the final cost for this article and relevant quantities in cents.
+                            taxAmount:
+                              type: integer
+                              example: 0
+                              description: Indicates the total tax amount included in the total amount.
+                        example:
+                          - code: 'TWP'
+                            pricePerUnit: 500
+                            currency: 'EUR'
+                            quantity: 5
+                            totalAmount: 2900
+                            taxAmount: 400
+                          - code: 'PET'
+                            pricePerUnit: 5090
+                            currency: 'EUR'
+                            quantity: 1
+                            totalAmount: 5904
+                            taxAmount: 814
+                      taxes:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - code
+                            - totalAmount
+                          properties:
+                            code:
+                              type: string
+                              example: 'TAX'
+                              description: Denotes the NextPax tax code associated for this tax. Please see the mapping codes endpoint in the Supply API for all values possible.
+                            amountPercentage:
+                              type: number
+                              example: 16
+                              description: Applicable tax percentage. Conflicts with AmountFlat.
+                            amountFlat:
+                              type: integer
+                              example: 100
+                              description: Applicable tax flat amount. Conflicts with AmountPercentage.
+                            amountFlatCurrency:
+                              type: string
+                              example: "EUR"
+                              description: The currency of the flat amount value. Only applicable if amountFlat > 0.
+                            totalAmount:
+                              type: integer
+                              example: 0
+                              description: Indicates the final cost for this tax.
+                        example:
+                          - code: 'TAX'
+                            amountPercentage: 16
+                            totalAmount: 25.00
+                          - code: 'VAT'
+                            amountFlat: 50.90
+                            totalAmount: 50.90
+                      createdAt:
+                        type: string
+                        format: timestamp
+                        example: "2021-01-01T02:02:01Z"
+                        description: A timestamp for when the reservation was initially created.
+                      modifiedAt:
+                        type: string
+                        format: timestamp
+                        example: "2021-01-01T02:02:01Z"
+                        description: A timestamp for when the reservation was last modified.
+                      cancelledAt:
+                        type: string
+                        format: timestamp
+                        example: "2021-01-01T02:02:01Z"
+                        description: A timestamp for when the reservation was cancelled. Can be null if reservation is not cancelled.
+                      metaData:
+                        type: object
+                        description: This field will indicate the meta data of the booking
+                      channelSpecificInformation:
+                        type: object
+                        description: This field will indicate the channel specific information of the booking
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+        400:
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect booking id.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Incorrect bookingId"
+                  result:
+                    type: string
+                    example: 'failure'
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+    put:
+      tags:
+        - Bookings
+      summary: Update a specific reservation
+      description: This endpoint allows to update a specific supplier reservation. The endpoint accepts partial requests. For example it is possible to update the bookingNumber and nothing else. Please note when updating values that may impact pricing, the stay price and rent only objects are required. Example, if updating arrival or departure dates, you also need to submit the new stay price (all in) as well as the rental price. When updating booker details, the entire object is NOT required thus you can only update the guest name or email address or a combination of these.
+      operationId: updateBooking
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: bookingId
+          description: This is the NextPax booking id.
+          schema:
+            type: string
+            format: string
+          required: true
+        - in: query
+          name: propertyManager
+          description: This is the NextPax property manager code.
+          schema:
+            type: string
+            format: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: updateBooking
+              type: object
+              required:
+                - query
+                - payload
+              properties:
+                query:
+                  type: string
+                  example: 'propertyManagerBooking'
+                  description: Operation requested. Always propertyManagerBooking
+                payload:
+                  type: object
+                  properties:
+                    bookingNumber:
+                      type: string
+                      example: '7654321'
+                      description: This is the supplier reservation identifier or booking number.
+                    remarks:
+                      type: string
+                      example: "I am arriving at 8PM and need parking."
+                      description: This optional field may indicate customer remarks.
+                    period:
+                      type: object
+                      required:
+                        - arrivalDate
+                        - departureDate
+                      properties:
+                        arrivalDate:
+                          type: string
+                          example: '2022-06-01'
+                          description: This is the checkin date of the reservation.
+                        departureDate:
+                          type: string
+                          example: '2022-06-08'
+                          description: This is the checkout date of the reservation.
+                    occupancy:
+                      type: object
+                      required:
+                        - adults
+                        - children
+                        - babies
+                        - pets
+                      properties:
+                        adults:
+                          type: integer
+                          example: 4
+                          description: This is the total number of adults booked on the reservation.
+                        children:
+                          type: integer
+                          example: 1
+                          description: This is the total number of children booked on the reservation.
+                        babies:
+                          type: integer
+                          example: 0
+                          description: This is the total number of babies or infants booked on the reservation.
+                        pets:
+                          type: integer
+                          example: 0
+                          description: This is the total number of pets booked on the reservation.
+                    stayPrice:
+                      type: object
+                      required:
+                        - amount
+                        - currency
+                      properties:
+                        amount:
+                          type: number
+                          example: 100.50
+                          description: This is the final price of the reservation.
+                        currency:
+                          type: string
+                          example: 'USD'
+                          description: This is the currency of the reservation in 3 letter code format. Please see the currencies listed in the Supply API.
+                    rentOnly:
+                      type: object
+                      required:
+                        - amount
+                      properties:
+                        amount:
+                          type: number
+                          example: 90.50
+                          description: This is the rent only price of the reservation.
+                    mainBooker:
+                      type: object
+                      properties:
+                        surname:
+                          type: string
+                          example: 'Doe'
+                          description: The surname of the main booker.
+                        letters:
+                          type: string
+                          example: 'J'
+                          description: The initials of the main booker.
+                        titleCode:
+                          type: string
+                          example: 'male'
+                          description: The title of the main booker.
+                        firstName:
+                          type: string
+                          example: 'John'
+                          description: The first name of the main booker.
+                        countryCode:
+                          type: string
+                          example: 'NL'
+                          description: The country code of the main booker in 2 letter format. Please see the countries endpoint in the Supply API for all values.
+                        language:
+                          type: string
+                          example: 'nl'
+                          description: The language code of the main booker in 2 letter format. Please see the languages endpoint in the Supply API for all values.
+                        zipCode:
+                          type: string
+                          example: '1234AB'
+                          description: The zipcode of the main booker.
+                        houseNumber:
+                          type: string
+                          example: '1'
+                          description: The house or street number of the main booker.
+                        street:
+                          type: string
+                          example: 'Wonder street 2'
+                          description: The address or street of the main booker.
+                        place:
+                          type: string
+                          example: 'Amsterdam'
+                          description: The city or place address of the main booker.
+                        phoneNumber:
+                          type: string
+                          example: '+31612245667'
+                          description: The contact phone number of the main booker.
+                        email:
+                          type: string
+                          example: 'test@tester.nl'
+                          description: The email address of the main booker.
+                        dateOfBirth:
+                          type: string
+                          example: '1980-01-01'
+                          description: The date of birth of the main booker.
+      responses:
+        200:
+          description: If you donâ€™t receive a response like below, the booking is not updated in our system. Please reach out to support@nextpax.com and share the full request you sent to our API.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      update:
+                        type: boolean
+                        example: true
+                        description: Flag indicating if the update was triggered.
+                      bookingNumber:
+                        type: string
+                        example: '777887888'
+                        description: This is the supplier reservation identifier or booking number.
+                      bookingId:
+                        type: string
+                        example: "95e0136f-4dfa-4fb3-a491-198478c14979"
+                        description: This is the NextPax booking id.
+                  result:
+                    type: string
+                    example: 'success'
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+        400:
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect booking id or booking number already exists for this reservation.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Incorrect bookingId"
+                  result:
+                    type: string
+                    example: 'failure'
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+  /cancellation/{bookingId}:
+    post:
+      tags:
+        - Bookings
+      summary: Cancel an existing reservation
+      description: Cancel an existing booking as property manager or property management system
+      operationId: cancelBookingById
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: bookingId
+          description: This is the NextPax booking id.
+          schema:
+            type: string
+            format: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: cancelBooking
+              type: object
+              required:
+                - type
+                - reason
+                - subReason
+                - messageToGuest
+              properties:
+                type:
+                  type: string
+                  example: 'guest'
+                  description: Indicates who requested the cancellation. Can be guest or owner
+                  enum:
+                    - guest
+                    - owner
+                reason:
+                  type: string
+                  example: 'Cancelled due to overbooking'
+                  description: A reason for the cancellation. Max 255 characters.
+                subReason:
+                  type: string
+                  example: 'Season peak'
+                  description: Only relevant for Airbnb host cancellations. Max 255 characters.
+                messageToGuest:
+                  type: string
+                  example: 'The hotel is sorry for the inconvenience'
+                  description: Only relevant for Airbnb host cancellations. Between 30 and 240 characters.
+                messageToChannel:
+                  type: string
+                  example: 'The guest planned to organise a party, which is not according to our house rules.'
+                  description: Only relevant for Airbnb host cancellations. Between 30 and 240 characters.
+      responses:
+        200:
+          description: If you donâ€™t receive a response like below, the booking is not cancelled in our system. Please reach out to support@nextpax.com and share the full request you sent to our API.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      cancel:
+                        type: boolean
+                        example: true
+                        description: Flag indicating if the cancellation was triggered.
+                      state:
+                        type: string
+                        example: 'cancelled'
+                        description: The new state of the reservation. Should be cancelled if operation was successful.
+                  result:
+                    type: string
+                    example: 'success'
+  /cancellation:
+    post:
+      tags:
+        - Bookings
+      summary: Cancel an existing reservation
+      description: Cancel an existing booking as property manager or property management system
+      operationId: cancelBooking
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: cancelBooking
+              type: object
+              required:
+                - query
+                - payload
+              properties:
+                query:
+                  type: string
+                  example: 'propertyManagerCancellation'
+                  description: Operation requested. Always propertyManagerCancellation
+                payload:
+                  type: object
+                  required:
+                    - channelPartnerReference
+                    - supplierPropertyId
+                    - type
+                  properties:
+                    bookingNumber:
+                      type: string
+                      example: '7654321'
+                      description: This is the supplier reservation identifier or booking number.
+                    channelPartnerReference:
+                      type: string
+                      example: '12345678-87654321'
+                      description: This is the distribution channel reservation identifier or booking number.
+                    propertyManager:
+                      type: string
+                      example: SANXP000001
+                      description: This is the NextPax property manager code.
+                    supplierPropertyId:
+                      type: string
+                      example: 'A12345'
+                      description: This is the supplier property reference or property id.
+                    type:
+                      type: string
+                      example: 'guest'
+                      description: Indicates who requested the cancellation. Can be guest or owner
+                      enum:
+                        - guest
+                        - owner
+                    reason:
+                      type: string
+                      example: 'Cancelled due to overbooking'
+                      description: A reason for the cancellation. Max 255 characters.
+                    subReason:
+                      type: string
+                      example: 'Season peak'
+                      description: Only relevant for Airbnb host cancellations. Max 255 characters.
+                    messageToGuest:
+                      type: string
+                      example: 'The hotel is sorry for the inconvenience'
+                      description: Only relevant for Airbnb host cancellations. Max 255 characters.
+                    messageToChannel:
+                      type: string
+                      example: 'The guest planned to organise a party, which is not according to our house rules.'
+                      description: Only relevant for Airbnb host cancellations. Max 255 characters.
+                    bookingId:
+                      type: string
+                      example: '95e0136f-4dfa-4fb3-a491-198478c14979'
+                      description: This is the NextPax booking id. It is required when the request does not have a booking number.
+      responses:
+        200:
+          description: If you donâ€™t receive a response like below, the booking is not cancelled in our system. Please reach out to support@nextpax.com and share the full request you sent to our API.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      cancel:
+                        type: boolean
+                        example: true
+                        description: Flag indicating if the cancellation was triggered.
+                      bookingNumber:
+                        type: string
+                        example: '777887888'
+                        description: This is the supplier reservation identifier or booking number.
+                      state:
+                        type: string
+                        example: 'cancelled'
+                        description: The new state of the reservation. Should be cancelled if operation was successful.
+                  result:
+                    type: string
+                    example: 'success'
+  /bookings/{bookingId}/payment-details:
+    get:
+      tags:
+        - Bookings
+      summary: Retrieves payment method and details for a specific reservation
+      description: This endpoint allows to retrieve the payment information and method for a supplier reservation. Please note that credit card information is only available for PCI compliant partners. The endpoint requires a NextPax booking id in the path. For tokenized payments we only work with Tokenex.
+      operationId: getBookingPaymentDetails
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: bookingId
+          description: This is the NextPax booking id.
+          schema:
+            type: string
+            format: string
+          required: true
+        - in: query
+          name: withCvc
+          description: Flag to indicate if the cvc is required. Please note the cvc can only be provided once. Default false
+          schema:
+            type: boolean
+          required: false
+      responses:
+        200:
+          description: The request will return payment information relevant to the booking like credit card information or token for encrypted card information. For credit card payments, please note that the CVC can only be retrieved ONCE. After the first request, this information is no longer available and will show null.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      bookingId:
+                        type: string
+                        example: "95e0136f-4dfa-4fb3-a491-198478c14979"
+                        description: This is the NextPax booking id.
+                      bookingNumber:
+                        type: string
+                        example: '7654321'
+                        description: This is the supplier reservation identifier or booking number.
+                      channelPartnerReference:
+                        type: string
+                        example: '12345678-87654321'
+                        description: This is the distribution channel reservation identifier or booking number.
+                      payment:
+                        type: object
+                        required:
+                          - type
+                        properties:
+                          type:
+                            type: string
+                            enum:
+                              - creditcard
+                              - tokenizedCreditCard
+                              - default
+                            example: 'creditcard'
+                            description: Indicates the type of payment method associated with this booking. Can be creditcard, tokenizedCreditCard or default for no payment.
+                          details:
+                            type: object
+                            properties:
+                              cardType:
+                                type: string
+                                example: "VISA"
+                                description: The credit card type associated with the payment method.
+                                enum:
+                                  - MasterCard
+                                  - VISA
+                                  - AmericanExpress
+                                  - Discover
+                                  - Diners
+                                  - JapanCreditBureau
+                              cardExpirationYear:
+                                type: integer
+                                example: 2025
+                                description: Indicates the credit card expiration year.
+                              cardExpirationMonth:
+                                type: integer
+                                example: 12
+                                description: Indicates the credit card expiration month.
+                              cardHolderName:
+                                type: string
+                                example: "John Doe"
+                                description: The credit card holder full name.
+                              cardNumber:
+                                type: string
+                                example: "4111111111111111"
+                                description: The credit card number (16 digits or more depending on card type).
+                              cardCVC:
+                                type: integer
+                                example: 123
+                                description: This is the card verification code (CVC or CVV). Can be 3 or 4 digits depending on card type. Please note that the CVC can only be retrieved ONCE. After the first request, this information is no longer available.
+                              isVirtual:
+                                 type: boolean
+                                 example: false
+                                 nullable: true
+                                 description: Indicates if this is a virtual credit card (provided that the channel delivered this information)
+                              activationDate:
+                                 type: string
+                                 example: '2099-01-01'
+                                 nullable: true
+                                 description: From which date can this (virtual) credit card be charged
+                              amountBalance:
+                                  type: number
+                                  example: 125.00
+                                  nullable: true
+                                  description: The maximum balance of the (virtual) credit card. You can not charge more than this balance
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+        400:
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect booking id.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Incorrect bookingId"
+                  result:
+                    type: string
+                    example: 'failure'
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+  /supplier-payment-provider/{propertyManager}:
+    get:
+      tags:
+        - Payments
+      summary: Retrieve supplier property manager payment provider setup
+      description: This endpoint allows to retrieve the payment provider that is setup for booking payments for the supplier property manager.
+      operationId: getPMPSPs
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: propertyManager
+          description: This is the NextPax property manager code.
+          schema:
+            type: string
+            format: string
+          required: true
+      responses:
+        200:
+          description: The request will return IDs for all (new) bookings as well as modified ones taking into consideration the optional parameters when used.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      providerId:
+                        type: string
+                        example: "authorizenet"
+                        description: This is the NextPax payment provider id.
+                      providerName:
+                        type: string
+                        example: 'Authorize.net'
+                        description: This is the  human readable payment provider company name.
+                      providerLogo:
+                        type: string
+                        example: 'https://someurl.com/image.png'
+                        description: This is the payment provider company logo.
+                      providerDescription:
+                        type: string
+                        example: "This company is really great at processing payments for your bookings"
+                        description: A human readable description or introduction for the payment provider company.
+                      websiteUrl:
+                        type: string
+                        example: 'https://someurl.com/'
+                        description: This is the website or homepage url for the payment provider company.
+                      configurationFields:
+                        type: array
+                        items:
+                          properties:
+                            fieldName:
+                              type: string
+                              example: 'password'
+                              description: Information required in this field is related to the configuration requirements returned via the GET /payment-provider-definitions endpoint. This is the name of the requirement.
+                            value:
+                              type: string
+                              example: 'my-super-secret-password'
+                              description: Information required in this field is related to the configuration requirements returned via the GET /payment-provider-definitions endpoint. This is the value of the requirement.
+                        example:
+                          - fieldName: username
+                            value: my-psp-account-id
+                          - fieldName: password
+                            value: my-super-secret-password
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+        400:
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect property manager code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Incorrect propertyManager code"
+                  result:
+                    type: string
+                    example: 'failure'
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+    post:
+      tags:
+        - Payments
+      summary: Create or update supplier property manager payment provider setup
+      description: This endpoint allows the supplier property manager to submit or update the current payment provider setup for booking payments. Any information submitted in the post request will replace any existing information in the NextPax platform.
+      parameters:
+        - in: header
+          name: X-Api-Token
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: propertyManager
+          description: This is the NextPax property manager code.
+          schema:
+            type: string
+            format: string
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+                - payload
+              properties:
+                query:
+                  type: string
+                  example: 'propertyManagerPaymentProvider'
+                  description: This is the requested operation. Always propertyManagerPaymentProvider for this endpoint.
+                payload:
+                  type: object
+                  properties:
+                    providerId:
+                      type: string
+                      example: "authorizenet"
+                      description: This is the NextPax payment provider id. Use value "none" to disable an existing payment provider.
+                    configurationFields:
+                      type: array
+                      items:
+                        properties:
+                          fieldName:
+                            type: string
+                            example: 'password'
+                            description: Information required in this field is related to the configuration requirements returned via the GET /payment-provider-definitions endpoint. This is the name of the requirement.
+                          value:
+                            type: string
+                            example: 'my-super-secret-password'
+                            description: Information required in this field is related to the configuration requirements returned via the GET /payment-provider-definitions endpoint. This is the value of the requirement.
+                      example:
+                        - fieldName: username
+                          value: my-psp-account-id
+                        - fieldName: password
+                          value: my-super-secret-password
+      responses:
+        200:
+          description: If there are no issues with the request then the information is saved in the NextPax platform and the desired payment provider is activated or de-activated based on the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      providerId:
+                        type: string
+                        example: 'authorizedotnet'
+                        description: This is the NextPax payment provider id.
+                      state:
+                        type: string
+                        example: 'enabled'
+                        description: Indicates the state of the payment provider. Values are enabled or disabled.
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+        400:
+          description: Indicates that there is an issue validating and or processing the request. Reasons may be wrong formatting, missing information or invalid data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Property manager code is missing or incorrect."
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+  /payment-provider-definitions:
+    get:
+      tags:
+        - Payments
+      summary: Retrieves all available payment providers that can be used.
+      description: This endpoint allows to retrieve a complete list of available payment providers that can be enabled for a given supplier property manager. The information provided in this endpoint is to be used in the POST /supplier-payment-provider.
+      operationId: getPSPs
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        200:
+          description: The request will return all possible configuration fields that can be used to setup the payment provider. Some configuration or settings may be optional.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        providerId:
+                          type: string
+                          example: "authorizedotnet"
+                          description: This is the NextPax payment provider id.
+                        providerName:
+                          type: string
+                          example: 'Authorize.net'
+                          description: This is the  human readable payment provider company name.
+                        providerLogo:
+                          type: string
+                          example: 'https://someurl.com/image.png'
+                          description: This is the payment provider company logo.
+                        providerDescription:
+                          type: string
+                          example: "This company is really great at processing payments for your bookings"
+                          description: A human readable description or introduction for the payment provider company.
+                        websiteUrl:
+                          type: string
+                          example: 'https://someurl.com/'
+                          description: This is the website or homepage url for the payment provider company.
+                        configurationFields:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              fieldName:
+                                type: string
+                                description: This is the name of the configuration field.
+                                example: username
+                              description:
+                                type: string
+                                description: Explanation for the configuration field.
+                                example: This is your username from the payment provider.
+                              required:
+                                type: boolean
+                                description: This flag will determine if the configuration field is required. When true a value is expected when posting the setup.
+                                example: true
+                                default: false
+                              options:
+                                type: array
+                                items:
+                                  type: string
+                                description: Some configuration fields will allow selecting 1 value from multiple options. The options will be listed here.
+                                example:
+                                  - domestic
+                                  - international
+                          description: This field will indicate what kind of information is required for the setup. It can be anything from a payment provider username, key or other configuration. This information is shared by the payment provider. There can be multiple fields.
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+        400:
+          description: Indicates that there is an issue validating and or processing the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "validation-error"
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: "Incorrect parameter"
+                  result:
+                    type: string
+                    example: 'failure'
+                  requestId:
+                    type: string
+                    example: "d6c84f022bc94ba08558af7873c3f5a1"
+                    description: A unique identifier for the request
+  /booking-alterations:
+    get:
+      tags:
+        - Alterations
+      summary: Retrieve bookings alteration requests
+      description: This endpoint allows to retrieve all booking alterations. Alterations are requests to modify a booking. The modification is only made to the booking after an alteration is confirmed. For now this functionality is supported by Airbnb only. Alterations are always linked to an existing booking id. An alteration can contain 1 or more fields that are being modified. Example the alteration can be only for the number of adults or it can be for both arrival and departure date.
+      operationId: getBookingAlterations
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: query
+          name: propertyManager
+          description: This is the NextPax property manager code.
+          schema:
+            type: string
+            format: string
+          required: true
+        - in: query
+          name: bookingId
+          description: This is the NextPax booking ID.
+          schema:
+            type: string
+            format: string
+          required: false
+        - in: query
+          name: onlyNew
+          description: Optional flag to only retrieve new alterations that were not pulled before.
+          schema:
+            type: boolean
+          required: false
+        - in: query
+          name: modifiedSince
+          description: Optional timestamp to indicate from when to receive alteration requests.
+          example: '2022-01-01T00:00:01Z'
+          schema:
+            type: string
+            format: timestamp
+          required: false
+      responses:
+        '200':
+          description: Response will contain all alterations that match provided filters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bookingId:
+                          type: string
+                          example: 95e0136f-4dfa-4fb3-a491-198478c14979
+                          description: This is the NextPax booking id.
+                        channelPartnerReference:
+                          type: string
+                          example: abc12345656
+                          description: This is the channel booking id.
+                        channelAlterationId:
+                          type: string
+                          example: '1235ab'
+                          description: This is the channel alteration identifier. It is required when accepting or declining a request.
+                        status:
+                          type: string
+                          example: pending
+                          description: The state of the alteration. Can be pending, accepted, declined, cancelled, voided.
+                        createdAt:
+                          type: string
+                          format: timestamp
+                          example: '2021-01-01T02:02:01Z'
+                          description: Indicates when the alteration was created.
+                        lastModified:
+                          type: string
+                          format: timestamp
+                          example: '2021-01-01T02:02:01Z'
+                          description: Indicates when the alteration was last updated or modified.
+                        period:
+                          type: object
+                          required:
+                            - arrivalDate
+                            - departureDate
+                          properties:
+                            arrivalDate:
+                              type: string
+                              example: '2022-06-01'
+                              description: This is the checkin date of the reservation.
+                            departureDate:
+                              type: string
+                              example: '2022-06-08'
+                              description: This is the checkout date of the reservation.
+                        occupancy:
+                          type: object
+                          required:
+                            - adults
+                            - children
+                            - babies
+                            - pets
+                          properties:
+                            adults:
+                              type: integer
+                              example: 4
+                              description: This is the total number of adults booked on the reservation.
+                            children:
+                              type: integer
+                              example: 1
+                              description: This is the total number of children booked on the reservation.
+                            babies:
+                              type: integer
+                              example: 0
+                              description: This is the total number of babies or infants booked on the reservation.
+                            pets:
+                              type: integer
+                              example: 0
+                              description: This is the total number of pets booked on the reservation.
+                        stayPrice:
+                          type: number
+                          description: This is the total of the reservation.
+                          example: 250
+                  result:
+                    type: string
+                    example: success
+                    description: Indicates that the request was successful
+                  requestId:
+                    type: string
+                    example: d6c84f022bc94ba08558af7873c3f5a1
+                    description: A unique identifier for the request
+        '400':
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect property manager code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: validation-error
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: Incorrect propertyManager code
+                  result:
+                    type: string
+                    example: failure
+                  requestId:
+                    type: string
+                    example: d6c84f022bc94ba08558af7873c3f5a1
+                    description: A unique identifier for the request
+  /booking-alterations/{alterationId}:
+    post:
+      tags:
+        - Alterations
+      summary: Change the status of an alteration request by accepting it, declining or cancelling it.
+      description: Guest requests for alterations can be accepted or declined. A host initiated alteration can be canceled if the guest has not accepted or declined from their end.
+      operationId: postAlteration
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: alterationId
+          description: To accept, decline or cancel an alteration request you will need the alteration id.
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: postAlteration
+              type: object
+              required:
+                - query
+                - payload
+              properties:
+                query:
+                  type: string
+                  example: propertyManagerAlteration
+                  description: Operation requested. Always propertyManagerAlteration
+                payload:
+                  type: object
+                  required:
+                    - bookingId
+                    - propertyManager
+                    - channelAlterationId
+                    - status
+                  properties:
+                    bookingId:
+                      type: string
+                      example: 95e0136f-4dfa-4fb3-a491-198478c14979
+                      description: This is the NextPax booking id.
+                    propertyManager:
+                      type: string
+                      example: SANXP000001
+                      description: This is the NextPax property manager code.
+                    channelAlterationId:
+                      type: string
+                      example: '1235ab'
+                      description: This is the channel alteration identifier. It is required when accepting or declining a request.
+                    status:
+                      type: string
+                      example: accepted
+                      description: The state of the alteration. Can be accepted, declined, cancelled. Only host initiated alterations can be cancelled and only if the alteration is currently on status pending.
+      responses:
+        '200':
+          description: If you donâ€™t receive a response like below, the alteration request is not processed in our system. Please reach out to support@nextpax.com and share the full request you sent to our API.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      bookingId:
+                        type: string
+                        example: 95e0136f-4dfa-4fb3-a491-198478c14979
+                        description: This is the NextPax booking id.
+                      status:
+                        type: string
+                        example: accepted
+                        description: The new state of the alteration.
+                  result:
+                    type: string
+                    example: success
+                  requestId:
+                    type: string
+                    example: d6c84f022bc94ba08558af7873c3f5a1
+                    description: A unique identifier for the request
+        '400':
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect property manager code or request not accepted by the channel.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: validation-error
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: Incorrect propertyManager code
+                  result:
+                    type: string
+                    example: failure
+                  requestId:
+                    type: string
+                    example: d6c84f022bc94ba08558af7873c3f5a1
+                    description: A unique identifier for the request
+  /change-booking-state:
+    post:
+      tags:
+        - Change Booking State
+      summary: Accept/Deny a Request to Book reservation.
+      description: Request to Book reservations can be accepted or declined.
+      operationId: changeBookingState
+      parameters:
+        - in: header
+          name: X-Api-Token
+          description: Access token required for using the endpoint. Please contact NextPax support to get yours.
+          schema:
+            type: string
+            format: uuid
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: changeBookingState
+              type: object
+              required:
+                - query
+                - channelId
+                - propertyManager
+                - payload
+              properties:
+                query:
+                  type: string
+                  example: changeBookingState
+                  description: Operation requested. Always changeBookingState
+                channelId:
+                  type: string
+                  example: 'HOM143'
+                  description: This is the NextPax channel id. The complete list of channels is accessible via the Supply API.
+                propertyManager:
+                  type: string
+                  example: SANXP000001
+                  description: This is the NextPax property manager code.
+                payload:
+                  type: object
+                  required:
+                    - bookingId
+                    - state
+                  properties:
+                    bookingId:
+                      type: string
+                      example: 95e0136f-4dfa-4fb3-a491-198478c14979
+                      description: This is the NextPax booking id.
+                    state:
+                      type: string
+                      enum:
+                        - reservation
+                        - cancelled
+                      example: reservation
+                      description: Reservation state will accept the request to book and cancelled will decline the request to book.
+                    bookingNumber:
+                      type: string
+                      example: '777887888'
+                      description: This is the supplier reservation identifier or booking number.
+                    reason:
+                      type: string
+                      enum:
+                        - dates_not_available
+                        - not_a_good_fit                        -
+                        - not_comfortable
+                        - waiting_for_better_reservation
+                        - details_incomplete
+                        - outside_hours_checkin
+                      example: 'dates_not_available'
+                      description: A reason option for the cancellation. Not needed when accepting, mandatory when declining. "waiting_for_better_reservation" is only available for Airbnb (AIR298). "details_incomplete" and "outside_hours_checkin" are only available for Booking.com (BOO142).
+                    reasonMessage:
+                      type: string
+                      description: A reason for the cancellation.
+                    changedBy:
+                      type: string
+      responses:
+        '200':
+          description: If you don't receive a response like below, the accept/deny of the request to book is not processed in our system. Please reach out to support@nextpax.com and share the full request you sent to our API.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: 95e0136f-4dfa-4fb3-a491-198478c14979
+                        description: This is the NextPax booking id.
+                      state:
+                        type: string
+                        example: accepted
+                        description: The new state of the reservation.
+                  result:
+                    type: string
+                    example: success
+                  requestId:
+                    type: string
+                    example: d6c84f022bc94ba08558af7873c3f5a1
+                    description: A unique identifier for the request
+        '400':
+          description: Indicates that there is an issue validating and or processing the request. Reason may be an incorrect property manager code or request not accepted by the channel.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: validation-error
+                      errors:
+                        type: array
+                        items:
+                          type: string
+                          example: Incorrect propertyManager code
+                  result:
+                    type: string
+                    example: failure
+                  requestId:
+                    type: string
+                    example: d6c84f022bc94ba08558af7873c3f5a1
+                    description: A unique identifier for the request

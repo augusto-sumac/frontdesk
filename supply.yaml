@@ -1,0 +1,1516 @@
+openapi: 3.0.1
+info:
+  title: NextPax Messaging API
+  description: |
+    **NextPax -  Messaging API specification** 
+
+    This document details the service endpoints, request and
+    response schemas that NextPax partners can use to facilitate communication between customers and accommodations.
+    All features of includes retrieving messaging, replying to existing ones, creating a new message/thread, as well as applying settings and automation options.
+
+    Currently Messaging API supports the following channels:
+    * Airbnb
+    * Booking.com
+    * Expedia
+    * Vrbo
+
+    **Authentication - OAuth2 Authentication**
+
+    NextPax Messaging API need OAuth2 authentication for accessing the endpoints. Existing Distribution API or Supply partners can simply use their existing credentials. New partners will be
+    issued a unique client_credetials that will be used by NextPax to generate the token for all endpoints.
+  contact:
+    email: support@nextpax.com
+  version: 1.0.0
+servers:
+  - url: https://messaging.nextpax.app/supply
+    description: '[Production Server]'
+  - url: https://messaging.sandbox.nextpax.app/supply
+    description: '[Sandbox Server]'
+security:
+  - openIdProd: []
+  - openIdSandbox: []
+paths:
+  /threads:
+    get:
+      tags:
+        - Messaging
+      summary: Retrieve threads.
+      description: |
+        Messaging Threads API allows for retrieving the threads (that may have 1 or more messages) from the NextPax channel management platform. These threads are linked to a customer reservation or booking request and contain a collection of messages attached to a thread.
+          * A thread needs to exist before sending a message.
+          * hasNewMessages parameter is optional and can be used to retrieve only threads that have new messages.
+          * Messages are marked as read once retrieved via the GET messages endpoint.
+      operationId: getThreads
+      parameters:
+        - name: hasNewMessages
+          in: query
+          description: Used to retrieve only threads that have at least 1 new (not previously retrieved) message.
+          schema:
+            type: boolean
+          required: false
+          style: form
+          explode: false
+          example: false
+        - name: channelId
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              example: BOO142
+              description: Returns threads linked to a specific channel id. See channel codes endpoint for values.
+            example: BOO142,AIR298
+          required: false
+          style: form
+          explode: false
+        - name: channelPartnerReference
+          in: query
+          schema:
+            type: string
+          required: false
+          style: form
+          explode: false
+          example: abcd123
+          description: Returns thread(s) linked to a specific reservation or booking id on a specific channel. Channel ID parameter is required when using the channelPartnerReference.
+        - name: fromTimestamp
+          in: query
+          description: "The timestamp from which to retrieve threads. Format: YYYY-MM-DDTHH:mm:ss"
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+            format: date-time
+          example: '2020-02-18T22:00:00'
+        - name: untilTimestamp
+          in: query
+          description: "The timestamp until which to retrieve threads. Format: YYYY-MM-DDTHH:mm:ss"
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+            format: date-time
+          example: '2020-02-19T22:00:00'
+        - name: offset
+          in: query
+          description: The number of items to skip before starting to collect the result
+            set
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+          example: 0
+        - name: limit
+          in: query
+          description: The numbers of items to return. Max value is 1000.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            default: 100
+          example: 100
+        - name: orderBy
+          in: query
+          description: The sort option and direction
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+            enum:
+              - channel_asc
+              - channel_desc
+              - time_asc
+              - time_desc
+              - star_asc
+              - star_desc
+          example: time_asc
+        - name: status
+          in: query
+          schema:
+            type: array
+            description: Returns threads with a specific status. Accepted, active, pending, 
+              canceled, timeout or declined are the common statuses that apply across all channels. 
+              The rest are channel specific statuses.
+            items:
+              type: string
+              enum:
+              - accepted
+              - active
+              - declined
+              - timeout
+              - expired
+              - pending
+              - pending_voided deny
+              - pending_payment
+              - pending_verification
+              - canceled
+              - cancelled_by_host
+              - cancelled_by_guest
+              - cancelled_by_admin
+              - awaiting_payment
+              - at_checkpoint
+              - not_possible
+              - checkpoint
+              - checkpoint_voided
+              - failed_verification
+              - reservation_request_voided
+          required: false
+          style: form
+          explode: false
+          example: accepted
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetThreadsResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+    post:
+      tags:
+        - Messaging
+      summary: Create a new thread.
+      description: |
+        Messaging Threads API allows for creating new threads (that may have 1 or more messages) from the NextPax channel management platform. These threads are linked to a customer reservation or booking request and contain a collection of messages attached to a thread.
+          * A thread needs to exist before sending a message.
+          * A new thread may be needed to be created when initiating the first message from the property manager / host or owner towards the guest.
+          * Before creating a new thread please check that one does not exist.
+      operationId: postThread
+      requestBody:
+        description: Request Sample and Schema
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessagingPostThread'
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetThread'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /threads/{threadId}:
+    get:
+      tags:
+        - Messaging
+      summary: Retrieve a thread.
+      description: |
+        Threads API allows for retrieving a specific thread present in the NextPax channel management platform. A thread can contain 1 or more messages.
+          * Threads are marked as retrieved (no longer new) after a successful retrieval.
+      operationId: getThreadById
+      parameters:
+        - name: threadId
+          in: path
+          description: The specific thread ID.
+          required: true
+          style: simple
+          explode: true
+          schema:
+            type: string
+          example: 549b77f2-fa62-4e6e-b352-88f2787b53dc
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetThread'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /messages:
+    get:
+      tags:
+        - Messaging
+      summary: Retrieve messages.
+      description: |
+        Messages API allows for retrieving the messages present in the NextPax channel management platform. These messages are all grouped via a thread system. A thread can contain 1 or more messages. Messages can be sent from a property host / owner or a guest.
+          * onlyNew parameter is optional and can be used to retrieve messages that have not been retrieved before.
+          * Messages are marked as retrieved (no longer new) after a successful retrieval.
+          * You can only retrieve a maximum of 30 days worth of messages when using from/untilTimestamp parameters.
+      operationId: getMessages
+      parameters:
+        - name: onlyNew
+          in: query
+          description: Used to retrieve only messages that have not been retrieved before.
+          schema:
+            type: boolean
+          required: false
+          style: form
+          explode: false
+          example: false
+        - name: fromTimestamp
+          in: query
+          description: "The timestamp from which to retrieve messages. Format: YYYY-MM-DDTHH:mm:ss"
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+            format: date-time
+          example: '2020-02-18T22:00:00'
+        - name: untilTimestamp
+          in: query
+          description: "The timestamp until which to retrieve messages. Default is current datetime. Format: YYYY-MM-DDTHH:mm:ss"
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
+            format: date-time
+          example: '2020-02-19T22:00:00'
+        - name: offset
+          in: query
+          description: The number of items to skip before starting to collect the result
+            set
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+          example: 0
+        - name: limit
+          in: query
+          description: The numbers of items to return. Max default value is 100.
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+          example: 10
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetMessagessResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+    post:
+      tags:
+        - Messaging
+      summary: Reply to a message.
+      description: |
+        Messaging API allows for replying to customer / guest messages received in the NextPax channel management platform. You can only reply to one message at a time in 1 request.
+          * Once submitted, the message can no longer be changed.
+          * Attachment has limitation about related channels;
+          * - Airbnb support 5MB size and type of png or jp(e)g. 
+          * - If you send body and attachment together, we create 2 messages in Airbnb.
+      operationId: postMessage
+      requestBody:
+        description: Request Sample and Schema
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessagingPostMessage'
+        required: true
+      responses:
+        "200":
+          description: default response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetMessage'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "425":
+          description: Too Early
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /messages/{threadId}:
+    get:
+      tags:
+        - Messaging
+      summary: Retrieve messages.
+      description: |
+        Messages API allows for retrieving the messages present in the NextPax channel management platform. These messages are all grouped via a thread system. A thread can contain 1 or more messages. Messages can be sent from a property host / owner or a guest.
+          * Messages are marked as retrieved (no longer new) after a successful retrieval.
+      operationId: getThreadMessages
+      parameters:
+        - name: threadId
+          in: path
+          description: The thread ID for which to retrieve all messages.
+          required: true
+          style: simple
+          explode: true
+          schema:
+            type: string
+          example: 549b77f2-fa62-4e6e-b352-88f2787b53dc
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetMessagessResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /message/{messageId}:
+    get:
+      tags:
+        - Messaging
+      summary: Retrieve message by Id.
+      description: |
+        Messages API allows for retrieving a specific message present in the NextPax channel management platform. These messages are all grouped via a thread system. A thread can contain 1 or more messages. Messages can be sent from a property host / owner or a guest.
+          * Messages are marked as retrieved (no longer new) after a successful retrieval.
+      operationId: getMessageById
+      parameters:
+        - name: messageId
+          in: path
+          description: Used to retrieve a message with a specific Id.
+          schema:
+            type: string
+          required: true
+          style: simple
+          explode: false
+          example: 6d8b0cb9-2934-437a-a68c-28026c477056
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetMessageById'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+    post:
+      tags:
+      - Messaging
+      summary: Update a message.
+      description: |
+        Messaging API allows for updating certain flags pertaining to a message present in the NextPax channel management platform. You can only update one message at a time in 1 request.
+          * One or more flags can be updated in 1 request.
+      operationId: updateMessageById
+      parameters:
+      - name: messageId
+        in: path
+        description: Used to retrieve a message with a specific Id.
+        schema:
+          type: string
+        required: true
+        style: simple
+        explode: false
+        example: 6d8b0cb9-2934-437a-a68c-28026c477056
+      requestBody:
+        description: Request Sample and Schema
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessagingPostMessageById'
+        required: true
+      responses:
+        "200":
+          description: default response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingGetMessage'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /settings/{propertyManagerCode}:
+    get:
+      tags:
+        - Settings
+      summary: Retrieve messaging settings for the property manager
+      description: |
+        Property Manager Messaging Settings API allows for a partner to retrieve messaging settings. Please note that some of these settings are required to be able to use messaging.
+          * The endpoint lists current settings for the property manager.
+          * NextPax property manager code is required.
+      operationId: getPropertyManagerMessagingSettings
+      parameters:
+        - name: propertyManagerCode
+          in: path
+          description: The NextPax property manager code.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+            example: DM
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyManagerMessagingSettingsGetResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+    post:
+      tags:
+        - Settings
+      summary: Send channel settings for the property manager
+      description: |
+        Property Manager Messaging Settings API allows for a partner to provide settings and additional information needed for messaging. Please note that some of these settings are required to be able to use messaging for a property manager.
+          * If data already exists this will be overwritten.
+          * NextPax property manager code is required.
+      operationId: propertyManagerMessagingSettings
+      parameters:
+        - name: propertyManagerCode
+          in: path
+          description: The NextPax property manager code.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+            example: DM
+      requestBody:
+        description: Request Sample and Schema.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyManagerMessagingSettingsRequest'
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyManagerMessagingSettingsGetResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /settings-definitions:
+    get:
+      tags:
+        - Settings
+      summary: Retrieve allowed messaging settings.
+      description: |
+        Messaging Settings API allows for retrieving the messaging settings applicable or required for a specific channel. In this endpoint you can see what settings are required before being able to use messagin for a channel.
+          * NextPax channelId parameter is optional.
+      operationId: getMessagingSettings
+      parameters:
+        - name: channelId
+          in: query
+          description: The NextPax channel code to retrieve settings and requirements
+            for a specific channel
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: string
+            example: BOO142
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsDefinitionsResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /scheduled-message/{propertyManagerCode}:
+    get:
+      tags:
+        - ScheduledMessage
+      summary: Retrieve scheduledMessageSettings
+      description: Fetch scheduledMessageSettings for related Property Manager.
+        * NextPax property manager code parameter is required.
+      operationId: getScheduledMessageSettings
+      parameters:
+        - name: propertyManagerCode
+          in: path
+          description: The NextPax Property Manager Code to create a scheduledMessage setting for.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetScheduledMessageResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+    post:
+      tags:
+        - ScheduledMessage
+      summary: Creates or overwrites scheduledMessageSettings for related Property Manager
+      description: |
+        Creates or overwrites scheduledMessageSettings for related Property Manager. 
+        That allows you to send a message automatically when a certain condition is met with an optional sendDelay 
+        prior or after that condition. Each setting is unique by the propertyManager, channel(s), condition, and
+        sendDelay. If you want to change one of those "key" parameters, you have to delete the existing setting and
+        create a new one. If you onle need to change the message or translation, you can update the existing setting.
+          * NextPax property manager code parameter is required.
+          * Condition and Type in ScheduledMessageSetting object are required.
+          * Messages will be sent to all channels supported by Messaging API.
+      operationId: upsertScheduledMessageSetting
+      parameters:
+        - name: propertyManagerCode
+          in: path
+          description: The NextPax Property Manager Code to create a scheduledMessage setting for.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      requestBody:
+        description: Request Sample and Schema.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertScheduledMessageRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpsertScheduledMessageResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+  /scheduled-message/{propertyManagerCode}/{scheduledMessageId}:
+    delete:
+      tags:
+        - ScheduledMessage
+      summary: Deletes scheduledMessageSetting and all the messages scheduled by it which were not sent yet
+      description: |
+        Deletes scheduledMessageSetting and all the messages scheduled by it which were not sent yet.
+          * NextPax property manager code parameter is required.
+          * All the scheduledMessages will be deleted.
+      operationId: deleteScheduledMessageSetting
+      parameters:
+        - name: propertyManagerCode
+          in: path
+          description: The NextPax Property Manager Code to create a scheduledMessage setting for.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+        - name: scheduledMessageId
+          in: path
+          description: Unique identifier of the scheduledMessageSetting.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+            example: PMC:AIR298:CheckIn:24h0m0s
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericErrorResponse'
+
+components:
+  schemas:
+    MessagingGetThreadsResponse:
+      required:
+        - requestId
+        - totalItems
+        - threads
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagingThread'
+        totalItems:
+          type: integer
+          example: 650
+          description: Indicates how many items are there in total for this query (not taking into account the limit/offset parameters).
+        requestId:
+          type: string
+          example: d6c84f022bc94ba08558af7873c3f5a1
+          description: unique request id used for identification.
+    MessagingGetThread:
+      required:
+        - requestId
+        - thread
+      properties:
+        thread:
+          $ref: '#/components/schemas/MessagingThread'
+        requestId:
+          type: string
+          example: d6c84f022bc94ba08558af7873c3f5a1
+          description: unique request id used for identification.
+    MessagingPostThread:
+      required:
+        - channelId
+        - channelPartnerReference
+      type: object
+      properties:
+        channelId:
+          type: string
+          example: BOO142
+          description: This is the channel Id that is linked to the thread. See channel codes for more information.
+        channelPartnerReference:
+          type: string
+          example: 123456789
+          description: A thread is always linked to a customer reservation or customer request reservation. The channel partner reference is the channel booking id.
+        subject:
+          type: string
+          example: This is a reservation request
+          description: If the thread has a subject then it will be shown here.
+    MessagingThread:
+      required:
+        - threadId
+        - channelId
+        - channelPartnerReference
+      type: object
+      properties:
+        threadId:
+          type: string
+          example: 549b77f2-fa62-4e6e-b352-88f2787b53dc
+          description: This is the NextPax thread Id.
+        channelId:
+          type: string
+          example: ABC012
+          description: This is the channel Id that is linked to the thread. See channel codes for more information.
+        channelPartnerReference:
+          type: string
+          example: 123456789
+          description: A thread is always linked to a customer reservation or customer request reservation. The channel partner reference is the channel booking id.
+        channelPropertyId:
+          type: string
+          example: "1156879894438129090"
+          description: This is the channel property Id that is linked to the thread.
+        supplierPropertyId:
+          type: string
+          description: this is the property id in the supplier (property manager) system
+          example: 1234abc
+        isUnread:
+          type: boolean
+          example: false
+          description: Flag that indicates if current thread is unread.
+        isStarred:
+          type: boolean
+          example: true
+          description: Flag that indicates if current thread is starred.
+        subject:
+          type: string
+          example: This is a reservation request
+          description: If the thread has a subject then it will be shown here.
+        lastMessage:
+          type: string
+          example: Hi, I would like to book a room for 2 nights.
+          description: This is a last message from the thread. It is trimmed to first 128 characters.
+        type:
+          type: string
+          description: Indicates the type of the thread. Can be inquiry, reservation, email, specialoffer or support
+          example: reservation
+          enum:
+            - reservation
+            - inquiry
+            - email
+            - specialoffer
+            - support
+        status:
+          type: string
+          description: Indicates the status of the thread. It is always in relation to the thread type. Can be accepted, active, expired, canceled, not_possible timeout, checkpoint_voided or declined
+          example: accepted
+          enum:
+             - accepted
+             - active
+             - expired
+             - canceled
+             - not_possible
+             - timeout
+             - checkpoint_voided
+             - declined
+        extendedChannelPartnerReferences:
+          type: array
+          description: There are certain cases, like Booking.com, where the Channel Partner Reference can be referenced by multiple PCI Bookings, one for each room reserved. In this array, we provide the extended Channel Partner References if they differ from the one provided by the channel.
+          items:
+            type: string
+          example: ["123456789-11111111", "123456789-22222222"]
+        stayInfo:
+          $ref: '#/components/schemas/StayInfo'
+        createdAt:
+          type: string
+          format: datetime
+          example: 2020-02-18T22:00:00
+          description: "Indicates when the thread was created. Format: YYYY-MM-DDTHH:mm:ss"
+        updatedAt:
+          type: string
+          format: datetime
+          example: 2020-02-18T22:00:00
+          description: "Indicates when the thread was updated. Format: YYYY-MM-DDTHH:mm:ss"
+    StayInfo:
+      type: object
+      description: Provides information about the stay associated with the channel reservation. In the case of multi-room reservations, the stayInfo object will contain details from the last room reservation that was synchronized.
+      properties:
+        checkInDate:
+          type: string
+          format: date
+          example: 2020-02-18
+          description: "Indicates the check-in date. Format: YYYY-MM-DD"
+        checkOutDate:
+          type: string
+          format: date
+          example: 2020-02-20
+          description: "Indicates the check-out date. Format: YYYY-MM-DD"
+        guestName:
+          type: string
+          example: Tania
+          description: "Indicates the guest name."
+        numberOfGuests:
+          type: integer
+          example: 1
+        numberOfAdults:
+          type: integer
+          example: 1
+        numberOfChildren:
+          type: integer
+          example: 0
+        numberOfInfants:
+          type: integer
+          example: 0
+        numberOfPets:
+          type: integer
+          example: 1
+      example:
+        checkInDate: '2024-09-02'
+        checkoutDate: '2020-09-09'
+        guestName: Tania
+        numberOfGuests: 1
+        numberOfAdults: 1
+        numberOfChildren: 0
+        numberOfInfants: 0
+        numberOfPets: 1
+    MessagingGetMessagessResponse:
+      required:
+        - requestId
+        - messages
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagingMessage'
+        totalItems:
+          type: integer
+          example: 650
+          description: Indicates how many items are there in total for this query (not taking into account the limit/offset parameters).
+        requestId:
+          type: string
+          example: d6c84f022bc94ba08558af7873c3f5a1
+          description: unique request id used for identification.
+    MessagingGetMessageById:
+      required:
+        - requestId
+        - message
+      properties:
+        message:
+          $ref: '#/components/schemas/MessagingMessage'
+        requestId:
+          type: string
+          example: d6c84f022bc94ba08558af7873c3f5a1
+          description: unique request id used for identification.
+    MessagingGetMessage:
+      required:
+        - requestId
+        - message
+      properties:
+        message:
+          $ref: '#/components/schemas/MessagingMessage'
+        requestId:
+          type: string
+          example: d6c84f022bc94ba08558af7873c3f5a1
+          description: unique request id used for identification.
+    MessagingPostMessage:
+      required:
+        - channelId
+        - threadId
+      type: object
+      properties:
+        threadId:
+          type: string
+          example: 549b77f2-fa62-4e6e-b352-88f2787b53dc
+          description: This is the NextPax thread Id. A message is always linked to a thread.
+        body:
+          type: string
+          example: This is the body of the message.
+          description: This is the body of the message.
+        attachment:
+          type: string
+          example: https://example.com/attachment.png
+          description: URL from where to get the attachment. Supported formats are (image/png", "image/jpg", "image/jpeg", "image/gif", "application/pdf). maximum size is 5 megabytes. Attachment will expire after 90 days.
+    MessagingPostMessageById:
+      type: object
+      anyOf:
+        - required:
+          - isUnread
+          - isStarred
+      properties:
+        isUnread:
+          type: boolean
+          example: false
+          description: Flag that indicates if current thread is unread.
+        isStarred:
+          type: boolean
+          example: true
+          description: Flag that indicates if current thread is starred.
+    MessagingMessage:
+      required:
+        - threadId
+        - messageId
+        - channelId
+        - messageOrder
+      type: object
+      properties:
+        threadId:
+          type: string
+          example: 549b77f2-fa62-4e6e-b352-88f2787b53dc
+          description: This is the NextPax thread Id. A message is always linked to a thread.
+        messageId:
+          type: string
+          example: 6d8b0cb9-2934-437a-a68c-28026c477056
+          description: This is the message Id. Each message has a unique message id.
+        channelId:
+          type: string
+          example: BOO142
+          description: This is the channel Id that is linked to the thread. See channel codes for more information.
+        messageOrder:
+          type: integer
+          example: 1
+          description: Indicates the order of the message within its thread. In this example 1 would indicate that this is the first message in the thread.
+        body:
+          type: string
+          example: This is the body of the message.
+          description: This is the body of the message.
+        attachment:
+          $ref: '#/components/schemas/Attachment'
+        type:
+          type: string
+          description: Indicates the type of the message. Can be host, guest or system.
+          example: host
+          enum:
+            - host
+            - guest
+            - system
+        isUnread:
+          type: boolean
+          example: false
+          description: Flag that indicates if current message is unread.
+        isStarred:
+          type: boolean
+          example: true
+          description: Flag that indicates if current message is starred.
+        createdAt:
+          type: string
+          example: 2020-02-18T22:00:00
+          format: datetime
+          description: "Indicates when the message was created. Format: YYYY-MM-DDTHH:mm:ss"
+        updatedAt:
+          type: string
+          format: datetime
+          example: 2020-02-18T22:00:00
+          description: "Indicates when the message was updated. Format: YYYY-MM-DDTHH:mm:ss"
+    Attachment:
+      required:
+        - id
+        - downloadURL
+        - mimeType
+        - bytesSize
+      type: object
+      properties:
+        id:
+          type: string
+          example: 549b77f2-fa62-4e6e-b352-88f2787b53dc
+          description: Attachment ID.
+        downloadURL:
+          type: string
+          example: 6d8b0cb9-2934-437a-a68c-28026c477056
+          description: URL from where to download the attachment.
+        mimeType:
+          type: string
+          example: image/png
+          description: URL from where to download the attachment.
+        bytesSize:
+          type: integer
+          example: 23482
+          description: size in bytes from the attachment.
+    SettingsDefinitionsResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/SettingsDefinitionsData'
+        requestId:
+          type: string
+          description: unique request id used for identification.
+          example: d6c84f022bc94ba08558af7873c3f5a1
+    SettingsDefinitionsData:
+      required:
+        - channels
+        - general
+      properties:
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/SettingsDefinitionsChannels'
+        general:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagingGeneralSettings'
+    SettingsDefinitionsChannels:
+      required:
+        - channelId
+        - settings
+      properties:
+        channelId:
+          type: string
+          description: This is a NextPax channel code. Please see Supply API /constants/channel-codes
+            endpoint for values.
+          example: BOO142
+        settings:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagingGeneralSettings'
+    MessagingGeneralSettings:
+      required:
+        - settingDescription
+        - settingName
+        - settingValue
+        - settingType
+      properties:
+        settingName:
+          type: string
+          description: Indicates the content requirement name.
+          example: default_email_address
+        settingDescription:
+          type: string
+          description: Describes what the setting is about or what is required.
+          example: A default email address is required to redirect messages from a customer.
+        settingType:
+          type: string
+          description: "Indicates if the value for this setting is of type string,\
+            \ number, bool, integer, enum."
+          example: string
+        settingOptions:
+          type: array
+          description: This lists the possible values for a setting if setting type
+            is enum.
+          items:
+            type: string
+            example: example_setting
+        settingRequired:
+          type: boolean
+          description: Indicates if the setting is required to be set before messaging functionality can be used.
+          example: true
+    PropertyManagerMessagingSettingsRequest:
+      properties:
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagingSettingsRequestData'
+        general:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagingSettingsData'
+    MessagingSettingsRequestData:
+      required:
+        - channelId
+        - active
+      properties:
+        channelId:
+          type: string
+          description: This is a NextPax channel code. Please see /constants/channel-codes
+            endpoint for values.
+          example: BOO142
+        active:
+          type: boolean
+          description: This channel is active or not for this PropertyManager
+          example: true
+        settings:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagingSettingsData'
+    MessagingSettingsData:
+      required:
+          - settingName
+      properties:
+        settingName:
+          type: string
+          description: Indicates the name of the setting.
+          example: default_email_address
+        settingValue:
+          type: string
+          description: The value provided for this setting
+          example: "someone@host.com"
+    PropertyManagerMessagingSettingsGetResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/PropertyManagerMessagingSettingsRequest'
+        requestId:
+          type: string
+          description: unique request id used for identification.
+          example: d6c84f022bc94ba08558af7873c3f5a1
+    GetScheduledMessageResponse:
+      required:
+        - requestId
+        - scheduledMessageSettings
+      properties:
+        requestId:
+          type: string
+          description: unique request id used for identification.
+          example: d6c84f022bc94ba08558af7873c3f5a1
+        scheduledMessageSettings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduledMessageSetting"
+    UpsertScheduledMessageRequest:
+      allOf:
+        - $ref: "#/components/schemas/ScheduledMessageSetting"
+    UpsertScheduledMessageResponse:
+      required:
+        - requestId
+        - scheduledMessageSetting
+      properties:
+        requestId:
+          type: string
+          description: unique request id used for identification.
+          example: d6c84f022bc94ba08558af7873c3f5a1
+        scheduledMessageSetting:
+          $ref: "#/components/schemas/ScheduledMessageSetting"
+    ScheduledMessageSetting:
+      type: object
+      required:
+        - condition
+        - message
+      description: ScheduledMessageSetting is a setting that allows you to send a message automatically
+        when a certain condition is met. Each setting is unique by the propertyManager, channel(s), condition, and
+        sendDelay. If you want to change one of those "key" parameters, you have to delete the existing setting and
+        create a new one. If you want to change the message or translations, you can update the existing setting.
+      properties:
+        id:
+          type: string
+          example: PMC:AIR298:CheckIn:24h0m0s
+          description: This is the NextPax scheduledMessageSetting unique identifier.
+            It consists of the Property Manager Code, ChannelID, Condition, and sendDelay.
+            No other scheduledMessageSetting can have the same id. If you'll try to create a new scheduledMessageSetting
+            with the same id, the old one will be overwritten.
+        condition:
+          type: string
+          enum:
+            - Reservation
+            - CheckIn
+            - CheckOut
+          description: The condition of the reply.
+            The message will be sent when the event specified in the condition happens (considering sendingDelay).
+          example: Reservation
+        message:
+          type: string
+          description: "The message template that will be used by default, if there is no translation for the booking 
+            language. In the message you can use placeholders like {{ GUEST_NAME }}. The placeholders will be replaced
+            with the actual values received from channels when the message is sent.
+            Following placeholders are available:
+              * {{ PROPERTY_NAME }} - the name of the property
+              * {{ CHECKIN_DATE }} - the check-in date of the booking
+              * {{ CHECKOUT_DATE }} - the check-out date of the booking
+              * {{ GUEST_NAME }} - the name of the guest
+              * {{ AIRBNB_HOUSE_RULES_LINK }} - the link to the house rules on Airbnb
+              * {{ AIRBNB_GUEST_REVIEW_LINK }} - the link to the guest review on Airbnb
+            Some of the placeholders are only available for certain channels."
+          example: "Hi {{ GUEST_NAME }}! This is a sample message from propertyManager."
+        translations:
+          description: This is the translation of the message in different languages. Is represented as a map of
+            messages by language code. Template placeholders could be used the same way as in the default message.
+            * When booking language is not available, the default message will be used.
+            * If booking language is not found in the translations, the default message will be used.
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            en: "Hi {{ GUEST_NAME }}! This is a sample message from propertyManager."
+            nl: "Hallo {{ GUEST_NAME }}! Dit is een voorbeeldbericht van propertyManager."
+        channelId:
+          type: string
+          description: The channel ID that is linked to the scheduledMessageSetting. If you want to link
+            scheduledMessageSetting to all the channels, leave this field empty.
+          example: BOO142
+        sendDelay:
+          type: string
+          example: "-48h"
+          description: "Set this to send scheduledMessage before or after the event happens.
+          By default, sendDelay is 0. Maximum value is 90 days before or after the event.
+          For CheckOut condition, maximum value is 14 days after the event.
+          Currently, only a delay measured in days is supported, 
+          
+          A duration string is a possibly signed sequence of decimal numbers, each with optional fraction and a 
+          unit suffix, such as '-1.5h' or '2h45m'. Valid time units are 's', 'm', 'h'.
+          For more details, please check Go documentation: https://pkg.go.dev/time#ParseDuration
+            
+          Examples:
+            * If you use 'CheckIn' type and 'sendingDelay' is -1d (which is 1 day before), that means
+            the message will be sent 1 day before the Check-In happens.
+            * If you use 'CheckOut' type and 'sendingDelay' is 3d (which is 3 days after), that means
+            the message will be sent 3 days after the time of Check-Out."
+    GenericSuccessResponse:
+      type: object
+      required:
+        - message
+        - requestId
+      properties:
+        message:
+          type: string
+          example: Some info about the response. Usually just "OK".
+        requestId:
+          type: string
+    GenericErrorResponse:
+      type: object
+      required:
+        - code
+        - nextPaxErrorCode
+        - message
+        - requestId
+      properties:
+        code:
+          type: string
+          example: ce8aeb13-d783-4f37-8351-28856792ff2d
+        nextPaxErrorCode:
+          type: string
+          example: NEXT-ERROR-981
+        message:
+          type: string
+          example: Some info about the error
+        invalidFields:
+          type: array
+          items:
+            type: string
+        requestId:
+          type: string
+          example: d6c84f022bc94ba08558af7873c3f5a1
+  securitySchemes:
+    openIdProd:
+      type: oauth2
+      description: Production Auth
+      flows:
+        clientCredentials:
+          tokenUrl: /auth/realms/supply-api-production/protocol/openid-connect/token
+          refreshUrl: /auth/realms/supply-api-production/protocol/openid-connect/token
+          scopes: {}
+    
+    openIdSandbox:
+      type: oauth2
+      description: Sandbox Auth
+      flows:
+        clientCredentials:
+          tokenUrl: /auth/realms/supply-api-sandbox/protocol/openid-connect/token
+          refreshUrl: /auth/realms/supply-api-sandbox/protocol/openid-connect/token
+          scopes: {}
