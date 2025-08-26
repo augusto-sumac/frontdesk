@@ -169,6 +169,150 @@
                             </div>
                         </div>
 
+                        <!-- Integration IDs -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary fw-bold mb-3">
+                                    <i class="fas fa-link me-2"></i>IDs de Integração
+                                </h6>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="booking_id" class="form-label fw-medium">
+                                    Booking ID
+                                </label>
+                                <input type="text" 
+                                       class="form-control @error('booking_id') is-invalid @enderror" 
+                                       id="booking_id" 
+                                       name="booking_id" 
+                                       value="{{ old('booking_id') }}"
+                                       placeholder="ID da reserva principal">
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    ID da reserva principal do usuário (opcional)
+                                </div>
+                                @error('booking_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="airbnb_id" class="form-label fw-medium">
+                                    Airbnb ID
+                                </label>
+                                <input type="text" 
+                                       class="form-control @error('airbnb_id') is-invalid @enderror" 
+                                       id="airbnb_id" 
+                                       name="airbnb_id" 
+                                       value="{{ old('airbnb_id') }}"
+                                       placeholder="ID do Airbnb">
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    ID do Airbnb do usuário (opcional)
+                                </div>
+                                @error('airbnb_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+
+                        <!-- Address Information (for NextPax integration) -->
+                        <div class="row mb-4" id="addressSection" style="display: none;">
+                            <div class="col-12">
+                                <h6 class="text-primary fw-bold mb-3">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Informações de Endereço (NextPax)
+                                </h6>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Estas informações são necessárias para criar o Property Manager na NextPax
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="address" class="form-label fw-medium">
+                                    Endereço <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control @error('address') is-invalid @enderror" 
+                                       id="address" 
+                                       name="address" 
+                                       value="{{ old('address') }}"
+                                       placeholder="Rua, número, complemento">
+                                @error('address')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="city" class="form-label fw-medium">
+                                    Cidade <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control @error('city') is-invalid @enderror" 
+                                       id="city" 
+                                       name="city" 
+                                       value="{{ old('city', 'São Paulo') }}"
+                                       placeholder="Nome da cidade">
+                                @error('city')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="state" class="form-label fw-medium">
+                                    Estado <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select @error('state') is-invalid @enderror" 
+                                        id="state" 
+                                        name="state" 
+                                        required>
+                                    <option value="BR_SP" {{ old('state') == 'BR_SP' ? 'selected' : 'selected' }}>São Paulo</option>
+                                    <option value="BR_RJ" {{ old('state') == 'BR_RJ' ? 'selected' : '' }}>Rio de Janeiro</option>
+                                    <option value="BR_MG" {{ old('state') == 'BR_MG' ? 'selected' : '' }}>Minas Gerais</option>
+                                    <option value="BR_RS" {{ old('state') == 'BR_RS' ? 'selected' : '' }}>Rio Grande do Sul</option>
+                                    <option value="BR_PR" {{ old('state') == 'BR_PR' ? 'selected' : '' }}>Paraná</option>
+                                    <option value="BR_SC" {{ old('state') == 'BR_SC' ? 'selected' : '' }}>Santa Catarina</option>
+                                    <option value="BR_BA" {{ old('state') == 'BR_BA' ? 'selected' : '' }}>Bahia</option>
+                                    <option value="BR_GO" {{ old('state') == 'BR_GO' ? 'selected' : '' }}>Goiás</option>
+                                    <option value="BR_PE" {{ old('state') == 'BR_PE' ? 'selected' : '' }}>Pernambuco</option>
+                                    <option value="BR_CE" {{ old('state') == 'BR_CE' ? 'selected' : '' }}>Ceará</option>
+                                </select>
+                                @error('state')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="postal_code" class="form-label fw-medium">
+                                    CEP <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control @error('postal_code') is-invalid @enderror" 
+                                       id="postal_code" 
+                                       name="postal_code" 
+                                       value="{{ old('postal_code') }}"
+                                       placeholder="00000-000">
+                                @error('postal_code')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="website" class="form-label fw-medium">
+                                    Website
+                                </label>
+                                <input type="url" 
+                                       class="form-control @error('website') is-invalid @enderror" 
+                                       id="website" 
+                                       name="website" 
+                                       value="{{ old('website') }}"
+                                       placeholder="https://exemplo.com">
+                                @error('website')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+
                         <!-- Security Information -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -286,6 +430,26 @@ function togglePassword(fieldId) {
     }
 }
 
+// Controlar visibilidade da seção de endereço baseado no tipo de usuário
+document.getElementById('role').addEventListener('change', function() {
+    const addressSection = document.getElementById('addressSection');
+    const isSupply = this.value === 'supply';
+    
+    if (isSupply) {
+        addressSection.style.display = 'block';
+        // Marcar campos obrigatórios
+        addressSection.querySelectorAll('input[required], select[required]').forEach(field => {
+            field.required = true;
+        });
+    } else {
+        addressSection.style.display = 'none';
+        // Remover obrigatoriedade dos campos
+        addressSection.querySelectorAll('input, select').forEach(field => {
+            field.required = false;
+        });
+    }
+});
+
 // Password strength indicator
 document.getElementById('password').addEventListener('input', function() {
     const password = this.value;
@@ -320,5 +484,13 @@ function updatePasswordStrengthIndicator(strength) {
         feedback.className = 'form-text text-danger';
     }
 }
+
+// Inicializar estado da seção de endereço
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.getElementById('role');
+    if (roleSelect.value === 'supply') {
+        document.getElementById('addressSection').style.display = 'block';
+    }
+});
 </script>
 @endsection

@@ -68,6 +68,7 @@
                                     <th class="px-4 py-3">Usuário</th>
                                     <th class="px-4 py-3">Função</th>
                                     <th class="px-4 py-3">Empresa</th>
+                                    <th class="px-4 py-3">Integração</th>
                                     <th class="px-4 py-3">Status</th>
                                     <th class="px-4 py-3">Criado em</th>
                                     <th class="px-4 py-3 text-center">Ações</th>
@@ -112,6 +113,30 @@
                                         <td class="px-4 py-3">
                                             <div class="text-dark fw-medium">
                                                 {{ $user->company_name ?? 'N/A' }}
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="d-flex flex-column gap-1">
+                                                @if($user->property_manager_code)
+                                                    <span class="badge bg-success fs-6">
+                                                        <i class="fas fa-check-circle me-1"></i>NextPax: {{ $user->property_manager_code }}
+                                                    </span>
+                                                @endif
+                                                @if($user->booking_id)
+                                                    <span class="badge bg-info fs-6">
+                                                        <i class="fas fa-calendar-check me-1"></i>Booking: {{ $user->booking_id }}
+                                                    </span>
+                                                @endif
+                                                @if($user->airbnb_id)
+                                                    <span class="badge bg-warning fs-6">
+                                                        <i class="fas fa-home me-1"></i>Airbnb: {{ $user->airbnb_id }}
+                                                    </span>
+                                                @endif
+                                                @if(!$user->property_manager_code && !$user->booking_id && !$user->airbnb_id)
+                                                    <span class="badge bg-secondary fs-6">
+                                                        <i class="fas fa-info-circle me-1"></i>Sem integração
+                                                    </span>
+                                                @endif
                                             </div>
                                         </td>
                                         <td class="px-4 py-3">

@@ -52,7 +52,7 @@ class RegisterController extends Controller
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'property_id' => $property->id,
-                'role' => 'owner',
+                'role' => 'supply',
                 'phone' => $request->phone,
                 'company_name' => $request->company_name,
                 'is_active' => true,

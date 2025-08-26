@@ -101,22 +101,16 @@
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="text-center p-3 bg-light rounded">
-                                <div class="h3 mb-1 text-primary fw-bold">{{ \App\Models\User::where('role', 'owner')->count() }}</div>
-                                <div class="text-muted small">Proprietários</div>
+                                <div class="h3 mb-1 text-primary fw-bold">{{ \App\Models\User::where('role', 'admin')->count() }}</div>
+                                <div class="text-muted small">Administradores</div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="text-center p-3 bg-light rounded">
-                                <div class="h3 mb-1 text-info fw-bold">{{ \App\Models\User::where('role', 'manager')->count() }}</div>
-                                <div class="text-muted small">Gerentes</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="text-center p-3 bg-light rounded">
-                                <div class="h3 mb-1 text-secondary fw-bold">{{ \App\Models\User::where('role', 'staff')->count() }}</div>
-                                <div class="text-muted small">Funcionários</div>
+                                <div class="h3 mb-1 text-info fw-bold">{{ \App\Models\User::where('role', 'supply')->count() }}</div>
+                                <div class="text-muted small">Usuários Supply</div>
                             </div>
                         </div>
                     </div>
@@ -229,32 +223,35 @@
                                         </td>
                                         <td>
                                             <span class="badge 
-                                                @if($user->role === 'owner') bg-primary
-                                                @elseif($user->role === 'manager') bg-info
-                                                @else bg-secondary
+                                                @if($user->role === 'admin') bg-primary
+                                                @else bg-info
                                                 @endif">
                                                 @switch($user->role)
-                                                    @case('owner')
-                                                        Proprietário
+                                                    @case('admin')
+                                                        <i class="fas fa-crown me-1"></i>Administrador
                                                         @break
-                                                    @case('manager')
-                                                        Gerente
+                                                    @case('supply')
+                                                        <i class="fas fa-building me-1"></i>Supply
                                                         @break
-                                                    @case('staff')
-                                                        Funcionário
-                                                        @break
+                                                    @default
+                                                        {{ ucfirst($user->role) }}
                                                 @endswitch
                                             </span>
                                         </td>
                                         <td>
                                             <span class="badge 
                                                 @if($user->is_active) bg-success @else bg-danger @endif">
+                                                <i class="fas fa-{{ $user->is_active ? 'check-circle' : 'times-circle' }} me-1"></i>
                                                 {{ $user->is_active ? 'Ativo' : 'Inativo' }}
                                             </span>
                                         </td>
                                         <td>
                                             <span class="text-muted small">
-                                                {{ $user->created_at->format('d/m/Y H:i') }}
+                                                <i class="fas fa-calendar me-1"></i>{{ $user->created_at->format('d/m/Y') }}
+                                            </span>
+                                            <br>
+                                            <span class="text-muted small">
+                                                <i class="fas fa-clock me-1"></i>{{ $user->created_at->format('H:i') }}
                                             </span>
                                         </td>
                                     </tr>
@@ -294,7 +291,7 @@
     border-radius: 16px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content-center;
     font-size: 1.5rem;
 }
 </style>

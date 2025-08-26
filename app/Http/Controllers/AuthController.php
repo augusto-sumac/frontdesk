@@ -151,7 +151,7 @@ class AuthController extends Controller
             'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'property_manager_code' => $propertyManagerCode,
-                'role' => 'manager',
+                'role' => 'supply',
                 'is_active' => true,
             'phone' => $request->phone,
             'company_name' => $request->company_name,

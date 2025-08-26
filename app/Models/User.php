@@ -27,6 +27,8 @@ class User extends Authenticatable
         'phone',
         'company_name',
         'is_active',
+        'booking_id',
+        'airbnb_id',
     ];
 
     /**
@@ -66,5 +68,15 @@ class User extends Authenticatable
     public function isStaff()
     {
         return $this->role === 'staff';
+    }
+
+    public function isAdmin()
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isSupply()
+    {
+        return $this->role === 'supply';
     }
 }
