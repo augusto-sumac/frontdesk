@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\AdminController;
 
 /*
 |--------------------------------------------------------------------------
@@ -91,4 +92,22 @@ Route::middleware(['auth','tenant'])->group(function () {
     
     // ===== RELATÓRIOS =====
     Route::get('/reports', [DashboardController::class, 'reports'])->middleware('tenant')->name('reports.index');
+    
+    // ===== ADMINISTRAÇÃO =====
+    Route::prefix('admin')->middleware(['admin'])->group(function () {
+        Route::get('/', function () {
+            return view('admin.dashboard');
+        })->name('admin.dashboard');
+        
+        Route::prefix('users')->group(function () {
+            Route::get('/', [AdminController::class, 'index'])->name('admin.users.index');
+            Route::get('/create', [AdminController::class, 'create'])->name('admin.users.create');
+            Route::post('/', [AdminController::class, 'store'])->name('admin.users.store');
+            Route::get('/{user}/edit', [AdminController::class, 'edit'])->name('admin.users.edit');
+            Route::put('/{user}', [AdminController::class, 'update'])->name('admin.users.update');
+            Route::delete('/{user}', [AdminController::class, 'destroy'])->name('admin.users.destroy');
+            Route::post('/{user}/toggle-status', [AdminController::class, 'toggleStatus'])->name('admin.users.toggle-status');
+            Route::post('/{user}/change-password', [AdminController::class, 'changePassword'])->name('admin.users.change-password');
+        });
+    });
 });

@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Registrar alias de middleware
         $middleware->alias([
             'tenant' => EnsureTenantConfigured::class,
+            'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
         ]);
 
         // Opcional: adicionar à pilha do grupo 'web' depois do 'auth'

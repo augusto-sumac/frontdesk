@@ -28,6 +28,11 @@ class EnsureTenantConfigured
             return $next($request);
         }
 
+        // Permitir acesso à área administrativa para admins mesmo sem tenant
+        if ($request->routeIs('admin.*') && $user->role === 'admin') {
+            return $next($request);
+        }
+
         if (empty($user->property_manager_code)) {
             return redirect()->route('profile.index')
                 ->with('warning', 'Configure seu Property Manager Code (tenant) para acessar as funcionalidades.');

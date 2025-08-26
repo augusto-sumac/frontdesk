@@ -34,6 +34,13 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
+            
+            // Redirecionar admins para o dashboard administrativo
+            $user = Auth::user();
+            if ($user->role === 'admin') {
+                return redirect()->intended(route('admin.dashboard'));
+            }
+            
             return redirect()->intended(route('dashboard'));
         }
 
