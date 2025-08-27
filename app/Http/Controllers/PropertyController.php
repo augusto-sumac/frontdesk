@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -31,40 +32,46 @@ class PropertyController extends Controller
                 return view('properties.index', ['error' => 'Configure seu Código do Gerenciador (NextPax) no perfil para listar propriedades.', 'localProperties' => collect(), 'apiProperties' => []]);
             }
 
-            // Carregar propriedades locais para métricas (sincronização baseada em property_id)
+            // Carregar propriedades locais (que já foram criadas via API)
             $localProperties = Property::where('channel_type', 'nextpax')
+                ->whereNotNull('channel_property_id')
                 ->orderBy('created_at', 'desc')
                 ->get();
 
-            // Get properties from NextPax API (list)
+            // Buscar propriedades da API NextPax para sincronização
             $response = $this->nextPaxService->getProperties($propertyManagerCode);
             $apiProperties = $response['data'] ?? $response ?? [];
 
-            // Enrich each property with full details from retrieve endpoint to populate view
-            $detailed = [];
-            foreach ($apiProperties as $p) {
-                $pid = $p['propertyId'] ?? ($p['id'] ?? null);
-                if (!$pid) { continue; }
+            // Mapear propriedades locais com dados da API
+            $mappedProperties = [];
+            foreach ($localProperties as $localProperty) {
+                // Buscar dados completos da API para cada propriedade local
                 try {
-                    $detail = $this->nextPaxService->getProperty($pid);
-                    if (is_array($detail)) { $detail['propertyId'] = $pid; $detailed[] = $detail; }
+                    $apiProperty = $this->nextPaxService->getProperty($localProperty->channel_property_id);
+                    if (is_array($apiProperty)) {
+                        $mappedProperties[] = [
+                            'local' => $localProperty,
+                            'api' => $apiProperty,
+                            'is_synced' => true,
+                            'status' => $localProperty->status ?? 'active'
+                        ];
+                    }
                 } catch (\Exception $e) {
-                    // fallback to minimal if retrieve fails
-                    $detailed[] = [
-                        'propertyId' => $pid,
-                        'general' => $p['general'] ?? [],
+                    // Se não conseguir buscar da API, usar dados locais
+                    $mappedProperties[] = [
+                        'local' => $localProperty,
+                        'api' => null,
+                        'is_synced' => false,
+                        'status' => $localProperty->status ?? 'active'
                     ];
                 }
             }
 
-            $apiProperties = $detailed;
-
-            return view('properties.index', compact('localProperties', 'apiProperties'));
+            return view('properties.index', compact('mappedProperties'));
 
         } catch (\Exception $e) {
             return view('properties.index', [
-                'localProperties' => collect(),
-                'apiProperties' => [],
+                'mappedProperties' => [],
                 'error' => 'Não foi possível carregar as propriedades agora. Tente novamente mais tarde.'
             ]);
         }
@@ -165,31 +172,14 @@ class PropertyController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'property_type' => 'required|string|in:apartment,house,hotel,hostel,resort,villa,cabin,loft',
-                'description' => 'nullable|string|max:2000',
                 'address' => 'required|string|max:255',
                 'city' => 'required|string|max:100',
                 'state' => 'required|string|max:100',
-                'country' => 'required|string|max:100',
-                'postal_code' => 'nullable|string|max:20',
-                'latitude' => 'nullable|numeric|between:-90,90',
-                'longitude' => 'nullable|numeric|between:-180,180',
+                'postal_code' => 'required|string|max:20',
                 'max_occupancy' => 'required|integer|min:1|max:20',
                 'max_adults' => 'required|integer|min:1|max:20',
-                'max_children' => 'nullable|integer|min:0|max:20',
-                'bedrooms' => 'required|integer|min:1|max:20',
-                'bathrooms' => 'required|integer|min:1|max:20',
-                'base_price' => 'nullable|numeric|min:0',
-                'currency' => 'nullable|string|size:3',
-                'check_in_from' => 'required|date_format:H:i',
-                'check_in_until' => 'required|date_format:H:i',
-                'check_out_from' => 'required|date_format:H:i',
-                'check_out_until' => 'required|date_format:H:i',
-                'amenities' => 'nullable|array',
-                'amenities.*' => 'string|max:100',
-                'house_rules' => 'nullable|array',
-                'house_rules.*' => 'string|max:200',
-                'main_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
-                'gallery_images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
+                'latitude' => 'required|numeric|between:-90,90',
+                'longitude' => 'required|numeric|between:-180,180',
             ]);
 
             if ($validator->fails()) {
@@ -198,157 +188,59 @@ class PropertyController extends Controller
 
             $data = $request->all();
 
-            // Upload images to public disk to get public URLs for NextPax
-            $imageUrls = [];
-            if ($request->hasFile('main_image')) {
-                $path = $request->file('main_image')->store('properties/api', 'public');
-                $imageUrls[] = [
-                    'url' => \Storage::disk('public')->url($path),
-                    'caption' => $data['name'] ?? 'Imagem Principal',
-                    'displayPriority' => 0,
-                    'typeCode' => 'exterior',
-                    'lastUpdated' => now()->toDateString(),
-                ];
-            }
-            if ($request->hasFile('gallery_images')) {
-                $i = 1;
-                foreach ($request->file('gallery_images') as $file) {
-                    $path = $file->store('properties/api', 'public');
-                    $imageUrls[] = [
-                        'url' => \Storage::disk('public')->url($path),
-                        'caption' => $data['name'] ?? 'Imagem',
-                        'displayPriority' => $i,
-                        'typeCode' => $i === 1 ? 'interior' : 'interior',
-                        'lastUpdated' => now()->toDateString(),
-                    ];
-                    $i++;
-                }
-            }
-            if (!empty($imageUrls)) {
-                $data['images_urls'] = $imageUrls;
+            // Definir horários padrão
+            $data['check_in_from'] = '14:00';
+            $data['check_in_until'] = '22:00';
+            $data['check_out_from'] = '08:00';
+            $data['check_out_until'] = '11:00';
+
+            // Criar payload para NextPax
+            $apiPayload = $this->buildNextPaxPayload(new Property($data), $data);
+
+            // Criar propriedade na NextPax
+            $response = $this->nextPaxService->createProperty($apiPayload);
+            
+            if (!isset($response['data']['propertyId'])) {
+                throw new \Exception('Resposta inválida da API ao criar o Property Manager');
             }
 
-            // API-only: build payload from request data (no DB writes)
-            $tmp = new Property($data);
-            $tmp->property_id = 'prop-' . Str::random(12);
-            $tmp->currency = $data['currency'] ?? 'BRL';
+            $nextPaxPropertyId = $response['data']['propertyId'];
 
-            $apiPayload = $this->buildNextPaxPayload($tmp, $data);
-            // add images/descriptions/amenities to create request when present
-            if (!empty($data['images_urls'])) {
-                $apiPayload['images'] = array_map(function ($img) {
-                    return [
-                        'typeCode' => $img['typeCode'] ?? 'exterior',
-                        'url' => $img['url'],
-                        'caption' => $img['caption'] ?? null,
-                        'displayPriority' => $img['displayPriority'] ?? 0,
-                        'lastUpdated' => $img['lastUpdated'] ?? now()->toDateString(),
-                    ];
-                }, $data['images_urls']);
-            }
-            // Descriptions: prefer multilanguage set if provided
-            if (!empty($data['descriptions']) && is_array($data['descriptions'])) {
-                $apiPayload['descriptions'] = [];
-                foreach ($data['descriptions'] as $lang => $desc) {
-                    if (!empty($desc['text'])) {
-                        $apiPayload['descriptions'][] = [
-                            'typeCode' => $desc['typeCode'] ?? 'house',
-                            'language' => strtoupper($lang),
-                            'text' => $desc['text'],
-                        ];
-                    }
-                }
-            } elseif (!empty($data['description'])) {
-                $apiPayload['descriptions'] = [
-                    [
-                        'typeCode' => 'house',
-                        'language' => 'PT',
-                        'text' => $data['description'],
-                    ]
-                ];
-            }
-            if (!empty($data['amenities']) && is_array($data['amenities'])) {
-                $apiPayload['amenities'] = $this->mapAmenitiesToNextPax($data['amenities']);
-            }
-            if (!empty($data['fees']) && is_array($data['fees'])) {
-                $apiPayload['fees'] = array_values(array_filter($data['fees'], function ($fee) {
-                    return !empty($fee['feeCode']);
-                }));
-            }
-            if (!empty($data['taxes']) && is_array($data['taxes'])) {
-                $apiPayload['taxes'] = array_values(array_filter($data['taxes'], function ($tax) {
-                    return !empty($tax['taxCode']);
-                }));
-            }
-            if (!empty($data['nearestPlaces']) && is_array($data['nearestPlaces'])) {
-                $apiPayload['nearestPlaces'] = array_values(array_filter($data['nearestPlaces'], function ($np) {
-                    return !empty($np['typeCode']);
-                }));
-            }
-
-            $apiResponse = $this->nextPaxService->createProperty($apiPayload);
-
-            // Save property to database with API response data
-            $property = new Property();
-            $property->name = $data['name'];
-            $property->property_id = $apiResponse['data']['propertyId'] ?? $tmp->property_id; // NextPax UUID or fallback to temp ID
-            $property->channel_type = 'nextpax';
-            $property->channel_property_id = $apiResponse['data']['propertyId'] ?? $tmp->property_id; // NextPax UUID or fallback
-            $property->supplier_property_id = $tmp->property_id; // Our temporary ID (prop-xxx)
-            $property->address = $data['address'] ?? null;
-            $property->city = $data['city'] ?? null;
-            $property->state = $data['state'] ?? null;
-            $property->country = $data['country'] ?? null;
-            $property->description = $data['description'] ?? null;
-            $property->property_type = $data['property_type'] ?? 'apartment';
-            $property->max_occupancy = $data['max_occupancy'] ?? 2;
-            $property->max_adults = $data['max_adults'] ?? 2;
-            $property->max_children = $data['max_children'] ?? 0;
-            $property->bedrooms = $data['bedrooms'] ?? 1;
-            $property->bathrooms = $data['bathrooms'] ?? 1;
-            $property->postal_code = $data['postal_code'] ?? null;
-            $property->latitude = $data['latitude'] ?? null;
-            $property->longitude = $data['longitude'] ?? null;
-            $property->base_price = $data['base_price'] ?? null;
-            $property->currency = $data['currency'] ?? 'BRL';
-            $property->contact_name = $data['contact_name'] ?? null;
-            $property->contact_phone = $data['contact_phone'] ?? null;
-            $property->contact_email = $data['contact_email'] ?? null;
-            $property->check_in_from = $data['check_in_from'] ?? '14:00:00';
-            $property->check_in_until = $data['check_in_until'] ?? '22:00:00';
-            $property->check_out_from = $data['check_out_from'] ?? '08:00:00';
-            $property->check_out_until = $data['check_out_until'] ?? '11:00:00';
-            $property->amenities = $data['amenities'] ?? [];
-            $property->house_rules = $data['house_rules'] ?? [];
-            $property->status = 'active';
-            $property->is_active = true;
-            $property->save();
-
-            // If NextPax ignores images on create, ensure upload via images endpoint too
-            if (!empty($data['images_urls']) && !empty($apiResponse['data']['propertyId'])) {
-                $this->nextPaxService->updatePropertyImages($apiResponse['data']['propertyId'], [
-                    'images' => array_map(function ($img) {
-                        return [
-                            'typeCode' => $img['typeCode'] ?? 'exterior',
-                            'url' => $img['url'],
-                            'caption' => $img['caption'] ?? null,
-                            'displayPriority' => $img['displayPriority'] ?? 0,
-                            'lastUpdated' => $img['lastUpdated'] ?? now()->toDateString(),
-                        ];
-                    }, $data['images_urls'])
-                ]);
-            }
+            // Salvar localmente apenas para referência (sem duplicação)
+            $property = Property::create([
+                'name' => $data['name'],
+                'property_type' => $data['property_type'],
+                'address' => $data['address'],
+                'city' => $data['city'],
+                'state' => $data['state'],
+                'postal_code' => $data['postal_code'],
+                'country' => 'BR',
+                'max_occupancy' => $data['max_occupancy'],
+                'max_adults' => $data['max_adults'],
+                'latitude' => $data['latitude'],
+                'longitude' => $data['longitude'],
+                'channel_type' => 'nextpax',
+                'channel_property_id' => $nextPaxPropertyId,
+                'is_active' => false, // Inicialmente inativo
+                'status' => 'draft', // Status inicial: rascunho
+            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Propriedade criada na NextPax e salva no banco com sucesso!',
-                'propertyId' => $apiResponse['data']['propertyId'] ?? null,
-                'supplierPropertyId' => $tmp->property_id,
-                'localPropertyId' => $property->id,
+                'message' => 'Propriedade criada com sucesso na NextPax! ID: ' . $nextPaxPropertyId,
+                'property' => $property,
+                'nextPaxId' => $nextPaxPropertyId
             ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Erro ao criar propriedade: ' . $e->getMessage()], 500);
+            Log::error('Erro ao criar propriedade:', [
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'error' => 'Erro ao criar propriedade: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -681,6 +573,160 @@ class PropertyController extends Controller
         }
     }
 
+    /**
+     * Ativar propriedade na NextPax
+     */
+    public function activate(Request $request, $id)
+    {
+        try {
+            $property = Property::findOrFail($id);
+            
+            if ($property->status === 'active') {
+                return response()->json(['error' => 'Propriedade já está ativa'], 400);
+            }
+
+            // Ativar na NextPax (definir disponibilidade)
+            $response = $this->nextPaxService->activateProperty($property->channel_property_id);
+            
+            // Verificar se a resposta foi bem-sucedida
+            if (isset($response['data']) || isset($response['requestId'])) {
+                // Atualizar status local
+                $property->update([
+                    'is_active' => true,
+                    'status' => 'active'
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Propriedade ativada com sucesso na NextPax!',
+                    'property' => $property
+                ]);
+            } else {
+                throw new \Exception('Erro ao ativar na NextPax: ' . ($response['message'] ?? 'Resposta inválida da API'));
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao ativar propriedade:', [
+                'property_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'error' => 'Erro ao ativar propriedade: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Atualizar preços e configurações da propriedade
+     */
+    public function updatePricing(Request $request, $id)
+    {
+        try {
+            $property = Property::findOrFail($id);
+            
+            $validator = Validator::make($request->all(), [
+                'base_price' => 'required|numeric|min:0',
+                'currency' => 'required|string|in:BRL,USD,EUR',
+                'nightly_rate' => 'nullable|numeric|min:0',
+                'weekly_rate' => 'nullable|numeric|min:0',
+                'monthly_rate' => 'nullable|numeric|min:0',
+                'cleaning_fee' => 'nullable|numeric|min:0',
+                'security_deposit' => 'nullable|numeric|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Atualizar preços localmente
+            $property->update($request->only([
+                'base_price', 'currency', 'nightly_rate', 'weekly_rate', 
+                'monthly_rate', 'cleaning_fee', 'security_deposit'
+            ]));
+
+            // Atualizar preços na NextPax
+            $pricingPayload = $this->buildPricingPayload($property, $request->all());
+            $response = $this->nextPaxService->updatePropertyPricing($property->channel_property_id, $pricingPayload);
+
+            // Verificar se a resposta foi bem-sucedida
+            if (isset($response['data']) || isset($response['requestId'])) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Preços atualizados com sucesso na NextPax!',
+                    'property' => $property
+                ]);
+            } else {
+                // Se falhar na API, ainda salvamos localmente
+                Log::warning('Falha ao atualizar preços na NextPax, mas salvos localmente:', [
+                    'property_id' => $id,
+                    'api_response' => $response
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Preços salvos localmente. Erro na API: ' . ($response['message'] ?? 'Erro desconhecido'),
+                    'property' => $property
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao atualizar preços:', [
+                'property_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'error' => 'Erro ao atualizar preços: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Buscar dados da propriedade na API NextPax
+     */
+    public function getApiData($id)
+    {
+        try {
+            // Buscar propriedade por ID local, channel_property_id ou property_id
+            $property = Property::where('id', $id)
+                ->orWhere('channel_property_id', $id)
+                ->orWhere('property_id', $id)
+                ->first();
+            
+            if (!$property) {
+                return response()->json(['error' => 'Propriedade não encontrada'], 404);
+            }
+            
+            if (!$property->channel_property_id) {
+                return response()->json(['error' => 'Propriedade não possui ID da NextPax'], 400);
+            }
+
+            // Buscar dados completos da API
+            $apiData = $this->nextPaxService->getPropertyComplete($property->channel_property_id);
+            
+            if (isset($apiData['error'])) {
+                return response()->json(['error' => $apiData['error']], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $apiData,
+                'property' => $property
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao buscar dados da API:', [
+                'property_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'error' => 'Erro ao buscar dados da API: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     private function uploadPropertyImage(Property $property, $imageFile, string $type): PropertyImage
     {
         $fileName = time() . '_' . Str::random(10) . '.' . $imageFile->getClientOriginalExtension();
@@ -736,7 +782,7 @@ class PropertyController extends Controller
         $typeCode = $this->mapPropertyTypeToNextPaxCode($property->property_type ?: ($data['property_type'] ?? 'apartment'));
 
         $payload = [
-            'supplierPropertyId' => $property->channel_property_id ?: $property->property_id,
+            'supplierPropertyId' => 'prop-' . Str::random(12),
             'propertyManager' => Auth::user()->property_manager_code,
             'general' => [
                 'name' => $property->name ?? ($data['name'] ?? ''),
@@ -744,21 +790,23 @@ class PropertyController extends Controller
                 'maxAdults' => (int) ($property->max_adults ?? ($data['max_adults'] ?? 2)),
                 'maxOccupancy' => (int) ($property->max_occupancy ?? ($data['max_occupancy'] ?? 2)),
                 'classification' => 'single-unit',
-                'baseCurrency' => $property->currency ?? ($data['currency'] ?? 'BRL'),
+                'baseCurrency' => 'BRL',
                 'typeCode' => $typeCode,
-                'description' => $property->description ?? ($data['description'] ?? ''),
                 'address' => [
-                    'apt' => '',
                     'city' => $property->city ?? ($data['city'] ?? ''),
                     'countryCode' => strtoupper($country ?? 'BR'),
                     'street' => $property->address ?? ($data['address'] ?? ''),
                     'postalCode' => $property->postal_code ?? ($data['postal_code'] ?? ''),
                 ],
                 'checkInOutTimes' => [
-                    'checkInFrom' => $this->formatTimeForNextPax($property->check_in_from ?? ($data['check_in_from'] ?? null)),
-                    'checkInUntil' => $this->formatTimeForNextPax($property->check_in_until ?? ($data['check_in_until'] ?? null)),
-                    'checkOutFrom' => $this->formatTimeForNextPax($property->check_out_from ?? ($data['check_out_from'] ?? null)),
-                    'checkOutUntil' => $this->formatTimeForNextPax($property->check_out_until ?? ($data['check_out_until'] ?? null)),
+                    'checkInFrom' => '14:00',
+                    'checkInUntil' => '22:00',
+                    'checkOutFrom' => '08:00',
+                    'checkOutUntil' => '11:00',
+                ],
+                'geoLocation' => [
+                    'latitude' => (float) ($property->latitude ?? ($data['latitude'] ?? 0)),
+                    'longitude' => (float) ($property->longitude ?? ($data['longitude'] ?? 0)),
                 ],
             ],
         ];
@@ -766,29 +814,6 @@ class PropertyController extends Controller
         if ($stateCode) {
             $payload['general']['address']['state'] = $stateCode;
         }
-
-        // geoLocation
-        if ($property->latitude && $property->longitude && 
-            is_numeric($property->latitude) && is_numeric($property->longitude) &&
-            $property->latitude >= -90 && $property->latitude <= 90 &&
-            $property->longitude >= -180 && $property->longitude <= 180) {
-            $payload['general']['geoLocation'] = [
-                'latitude' => (float) $property->latitude,
-                'longitude' => (float) $property->longitude,
-            ];
-        } elseif (!empty($data['latitude']) && !empty($data['longitude'])) {
-            $lat = (float) $data['latitude'];
-            $lng = (float) $data['longitude'];
-            if ($lat >= -90 && $lat <= 90 && $lng >= -180 && $lng <= 180) {
-                $payload['general']['geoLocation'] = [
-                    'latitude' => $lat,
-                    'longitude' => $lng,
-                ];
-            }
-        }
-
-        // Validação adicional para garantir que não há campos vazios
-        $this->validateNextPaxPayload($payload);
 
         return $payload;
     }
@@ -1040,5 +1065,26 @@ class PropertyController extends Controller
             }
         }
         return $result;
+    }
+
+    /**
+     * Construir payload para atualização de preços
+     */
+    private function buildPricingPayload($property, $data)
+    {
+        return [
+            'propertyId' => $property->channel_property_id,
+            'pricing' => [
+                'basePrice' => [
+                    'amount' => $data['base_price'],
+                    'currency' => $data['currency'] ?? 'BRL'
+                ],
+                'nightlyRate' => isset($data['nightly_rate']) && $data['nightly_rate'] > 0 ? $data['nightly_rate'] : null,
+                'weeklyRate' => isset($data['weekly_rate']) && $data['weekly_rate'] > 0 ? $data['weekly_rate'] : null,
+                'monthlyRate' => isset($data['monthly_rate']) && $data['monthly_rate'] > 0 ? $data['monthly_rate'] : null,
+                'cleaningFee' => isset($data['cleaning_fee']) && $data['cleaning_fee'] > 0 ? $data['cleaning_fee'] : null,
+                'securityDeposit' => isset($data['security_deposit']) && $data['security_deposit'] > 0 ? $data['security_deposit'] : null,
+            ]
+        ];
     }
 } 

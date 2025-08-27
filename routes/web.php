@@ -61,13 +61,19 @@ Route::middleware(['auth','tenant'])->group(function () {
         Route::post('/', [PropertyController::class, 'store'])->name('properties.store');
         Route::get('/{propertyId}', [PropertyController::class, 'show'])->name('properties.show');
         Route::get('/{propertyId}/edit', [PropertyController::class, 'edit'])->name('properties.edit');
-                 Route::put('/{propertyId}', [PropertyController::class, 'update'])->name('properties.update');
-         Route::post('/{propertyId}/general', [PropertyController::class, 'updateGeneral'])->name('properties.update.general');
-         Route::post('/{propertyId}/descriptions', [PropertyController::class, 'updateDescriptions'])->name('properties.update.descriptions');
-         Route::post('/{propertyId}/images', [PropertyController::class, 'updateImagesApi'])->name('properties.update.images.api');
-         Route::post('/{propertyId}/fees', [PropertyController::class, 'updateFees'])->name('properties.update.fees');
-         Route::post('/{propertyId}/taxes', [PropertyController::class, 'updateTaxes'])->name('properties.update.taxes');
-         Route::post('/{propertyId}/nearest-places', [PropertyController::class, 'updateNearestPlaces'])->name('properties.update.nearest');
+        Route::put('/{propertyId}', [PropertyController::class, 'update'])->name('properties.update');
+        
+        // Novas rotas para ativação e preços
+        Route::post('/{propertyId}/activate', [PropertyController::class, 'activate'])->name('properties.activate');
+        Route::post('/{propertyId}/pricing', [PropertyController::class, 'updatePricing'])->name('properties.pricing');
+        Route::get('/{propertyId}/api-data', [PropertyController::class, 'getApiData'])->name('properties.api-data');
+        
+        Route::post('/{propertyId}/general', [PropertyController::class, 'updateGeneral'])->name('properties.update.general');
+        Route::post('/{propertyId}/descriptions', [PropertyController::class, 'updateDescriptions'])->name('properties.update.descriptions');
+        Route::post('/{propertyId}/images', [PropertyController::class, 'updateImagesApi'])->name('properties.update.images.api');
+        Route::post('/{propertyId}/fees', [PropertyController::class, 'updateFees'])->name('properties.update.fees');
+        Route::post('/{propertyId}/taxes', [PropertyController::class, 'updateTaxes'])->name('properties.update.taxes');
+        Route::post('/{propertyId}/nearest-places', [PropertyController::class, 'updateNearestPlaces'])->name('properties.update.nearest');
         Route::delete('/{propertyId}', [PropertyController::class, 'destroy'])->name('properties.delete');
         
         // Image management

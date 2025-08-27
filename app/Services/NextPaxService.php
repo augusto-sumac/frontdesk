@@ -251,4 +251,175 @@ class NextPaxService
     {
         return $this->makeRequest('POST', "/suppliers/property-manager/{$propertyManagerCode}", $data);
     }
+
+    /**
+     * Ativar propriedade na NextPax
+     */
+    public function activateProperty($propertyId)
+    {
+        try {
+            // Para ativar uma propriedade, precisamos definir disponibilidade
+            // Uma propriedade com disponibilidade > 0 é considerada ativa
+            $data = [
+                'data' => [
+                    [
+                        'fromDate' => date('Y-m-d'),
+                        'untilDate' => date('Y-m-d', strtotime('+1 year')),
+                        'quantity' => 1, // 1 unidade disponível
+                        'restrictions' => [
+                            'minStay' => 1,
+                            'maxStay' => 30,
+                            'departuresAllowed' => true,
+                            'arrivalsAllowed' => true
+                        ]
+                    ]
+                ]
+            ];
+            
+            return $this->makeRequest('POST', "/ari/availability/{$propertyId}", $data);
+        } catch (\Exception $e) {
+            Log::error('Erro ao ativar propriedade na NextPax:', [
+                'property_id' => $propertyId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => 'Erro ao ativar propriedade: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Atualizar preços da propriedade na NextPax
+     */
+    public function updatePropertyPricing($propertyId, $pricingData)
+    {
+        try {
+            Log::info('Tentando atualizar preços na NextPax:', [
+                'property_id' => $propertyId,
+                'pricing_data' => $pricingData
+            ]);
+
+            // Construir payload para atualização de preços usando o endpoint correto
+            $payload = [
+                'currency' => $pricingData['pricing']['basePrice']['currency'],
+                'pricingType' => 'default',
+                'rates' => [
+                    [
+                        'fromDate' => date('Y-m-d'),
+                        'untilDate' => date('Y-m-d', strtotime('+1 year')),
+                        'persons' => 1, // Preço base para 1 pessoa
+                        'minStay' => 1,
+                        'maxStay' => 30,
+                        'prices' => [
+                            'nightlyPrice' => (int)($pricingData['pricing']['basePrice']['amount'] * 100), // Preço em centavos
+                        ]
+                    ]
+                ]
+            ];
+
+            // Adicionar preços opcionais se existirem
+            if (isset($pricingData['pricing']['weeklyRate']) && $pricingData['pricing']['weeklyRate'] > 0) {
+                $payload['rates'][0]['prices']['weeklyPrice'] = (int)($pricingData['pricing']['weeklyRate'] * 100);
+            }
+            if (isset($pricingData['pricing']['monthlyRate']) && $pricingData['pricing']['monthlyRate'] > 0) {
+                $payload['rates'][0]['prices']['monthlyPrice'] = (int)($pricingData['pricing']['monthlyRate'] * 100);
+            }
+
+            Log::info('Payload para NextPax:', [
+                'endpoint' => "/ari/rates-periodic/{$propertyId}",
+                'payload' => $payload
+            ]);
+
+            $response = $this->makeRequest('POST', "/ari/rates-periodic/{$propertyId}", $payload);
+            
+            Log::info('Resposta da NextPax:', [
+                'property_id' => $propertyId,
+                'response' => $response
+            ]);
+
+            return $response;
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao atualizar preços na NextPax:', [
+                'property_id' => $propertyId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => 'Erro ao atualizar preços: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Buscar dados completos da propriedade na NextPax
+     */
+    public function getPropertyComplete($propertyId)
+    {
+        try {
+            $result = [
+                'property' => null,
+                'pricing' => null,
+                'availability' => null,
+                'status' => 'unknown'
+            ];
+
+            // Buscar dados básicos da propriedade
+            try {
+                $propertyResponse = $this->getProperty($propertyId);
+                if (isset($propertyResponse['data'])) {
+                    $result['property'] = $propertyResponse['data'];
+                }
+            } catch (\Exception $e) {
+                Log::warning('Erro ao buscar dados da propriedade:', ['error' => $e->getMessage()]);
+            }
+
+            // Buscar dados de preços
+            try {
+                $pricingResponse = $this->getRates($propertyId);
+                if (isset($pricingResponse['data'])) {
+                    $result['pricing'] = $pricingResponse['data'];
+                }
+            } catch (\Exception $e) {
+                Log::warning('Erro ao buscar preços da propriedade:', ['error' => $e->getMessage()]);
+            }
+
+            // Buscar dados de disponibilidade
+            try {
+                $availabilityResponse = $this->getAvailability($propertyId);
+                if (isset($availabilityResponse['data'])) {
+                    $result['availability'] = $availabilityResponse['data'];
+                }
+            } catch (\Exception $e) {
+                Log::warning('Erro ao buscar disponibilidade da propriedade:', ['error' => $e->getMessage()]);
+            }
+
+            // Determinar status baseado na disponibilidade
+            if (isset($result['availability']) && !empty($result['availability'])) {
+                $hasAvailability = false;
+                foreach ($result['availability'] as $avail) {
+                    if (isset($avail['quantity']) && $avail['quantity'] > 0) {
+                        $hasAvailability = true;
+                        break;
+                    }
+                }
+                $result['status'] = $hasAvailability ? 'active' : 'inactive';
+            }
+
+            return $result;
+
+        } catch (\Exception $e) {
+            Log::error('Erro ao buscar dados completos da propriedade:', [
+                'property_id' => $propertyId,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'error' => 'Erro ao buscar dados: ' . $e->getMessage()
+            ];
+        }
+    }
 } 

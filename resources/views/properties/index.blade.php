@@ -33,20 +33,15 @@
     </div>
 @endif
 
-{{-- Disclaimer de Integração NextPax removido --}}
-
 <!-- Stats Cards -->
 @php
-    $apiCollection = collect($apiProperties ?? []);
-    $totalProperties = $apiCollection->count();
-    $activeCount = $apiCollection->filter(function ($p) {
-        $status = strtolower($p['general']['status'] ?? ($p['status'] ?? ''));
-        return in_array($status, ['active','online','published','enabled']);
+    $totalProperties = count($mappedProperties ?? []);
+    $activeCount = collect($mappedProperties ?? [])->filter(function ($p) {
+        return ($p['local']['is_active'] ?? false) && ($p['local']['status'] ?? '') === 'active';
     })->count();
-    // Sincronizadas NextPax: propriedades presentes localmente com property_id (UUID NextPax) preenchido
-    $syncedCount = ($localProperties ?? collect())
-        ->filter(function ($prop) { return !empty($prop->property_id); })
-        ->count();
+    $syncedCount = collect($mappedProperties ?? [])->filter(function ($p) {
+        return $p['is_synced'] ?? false;
+    })->count();
 @endphp
 
 <div class="row mb-4">
@@ -59,7 +54,7 @@
                             Total de Propriedades
                         </div>
                         <div class="display-6 fw-bold text-dark">{{ $totalProperties }}</div>
-                        <small class="text-muted">Fonte: NextPax API</small>
+                        <small class="text-muted">Criadas via NextPax</small>
                     </div>
                     <div class="text-end">
                         <i class="fas fa-home fa-2x text-gray-300"></i>
@@ -78,7 +73,7 @@
                             Propriedades Ativas
                         </div>
                         <div class="display-6 fw-bold text-dark">{{ $activeCount }}</div>
-                        <small class="text-muted">Status: active/online/published</small>
+                        <small class="text-muted">Status: Ativo</small>
                     </div>
                     <div class="text-end">
                         <i class="fas fa-check-circle fa-2x text-gray-300"></i>
@@ -110,202 +105,412 @@
 
 <!-- Aviso curto -->
 <div class="mb-3">
-    <small class="text-muted"><i class="fas fa-info-circle me-1"></i>As propriedades são criadas via API e já passam por validação.</small>
+    <small class="text-muted"><i class="fas fa-info-circle me-1"></i>As propriedades são criadas via API NextPax e sincronizadas automaticamente.</small>
 </div>
 
 <!-- Properties List -->
 <div class="row">
-    @if(isset($localProperties) && count($localProperties) > 0)
-        @foreach($localProperties as $property)
+    @if(isset($mappedProperties) && count($mappedProperties) > 0)
+        @foreach($mappedProperties as $mappedProperty)
+            @php
+                $property = $mappedProperty['local'];
+                $apiData = $mappedProperty['api'];
+                $isSynced = $mappedProperty['is_synced'];
+                $status = $mappedProperty['status'];
+            @endphp
+            
             <div class="col-xl-4 col-md-6 mb-4">
                 <div class="card shadow h-100">
                     <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                         <h6 class="m-0 font-weight-bold text-primary">{{ $property->name ?? 'Propriedade sem nome' }}</h6>
-                        <div class="dropdown">
-                            <button class="btn btn-link btn-sm text-muted" type="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-ellipsis-v"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{{ route('properties.show', $property->id) }}">
-                                    <i class="fas fa-eye me-2"></i>Ver Detalhes
-                                </a></li>
-                                <li><a class="dropdown-item" href="{{ route('properties.edit', $property->id) }}">
-                                    <i class="fas fa-edit me-2"></i>Editar
-                                </a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item text-danger" href="#" onclick="deleteProperty({{ $property->id }})">
-                                    <i class="fas fa-trash me-2"></i>Excluir
-                                </a></li>
-                            </ul>
+                        <div class="d-flex align-items-center gap-2">
+                            @if($isSynced)
+                                <span class="badge bg-success">Sincronizada</span>
+                            @else
+                                <span class="badge bg-warning">Pendente</span>
+                            @endif
+                            @if($status === 'active')
+                                <span class="badge bg-primary">Ativa</span>
+                            @else
+                                <span class="badge bg-secondary">{{ ucfirst($status) }}</span>
+                            @endif
                         </div>
                     </div>
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-6">
-                                <small class="text-muted">ID</small>
-                                <div class="fw-bold">{{ $property->property_id ?? 'N/A' }}</div>
+                                <small class="text-muted">ID NextPax</small>
+                                <div class="fw-bold text-monospace small">{{ Str::limit($property->channel_property_id ?? 'N/A', 20) }}</div>
                             </div>
                             <div class="col-6">
-                                <small class="text-muted">Status</small>
-                                <div>
-                                    {!! $property->status_badge ?? '<span class="badge bg-secondary">N/A</span>' !!}
-                                </div>
+                                <small class="text-muted">Tipo</small>
+                                <div class="fw-bold">{{ ucfirst($property->property_type ?? 'N/A') }}</div>
                             </div>
                         </div>
                         
                         <div class="row mb-3">
                             <div class="col-6">
-                                <small class="text-muted">Tipo</small>
-                                <div class="fw-bold">{{ $property->property_type_text ?? 'N/A' }}</div>
+                                <small class="text-muted">Ocupação</small>
+                                <div class="fw-bold">{{ $property->max_occupancy ?? 'N/A' }}</div>
                             </div>
                             <div class="col-6">
-                                <small class="text-muted">Quartos</small>
-                                <div class="fw-bold">{{ $property->bedrooms ?? 'N/A' }}</div>
+                                <small class="text-muted">Adultos</small>
+                                <div class="fw-bold">{{ $property->max_adults ?? 'N/A' }}</div>
                             </div>
                         </div>
                         
-                        @if($property->description)
-                            <div class="mb-3">
-                                <small class="text-muted">Descrição</small>
-                                <p class="mb-0">{{ Str::limit($property->description, 100) }}</p>
+                        <div class="mb-3">
+                            <small class="text-muted">Endereço</small>
+                            <div class="fw-bold small">
+                                {{ $property->address }}, {{ $property->city }}, {{ $property->state }}, {{ $property->postal_code }}
                             </div>
-                        @endif
+                        </div>
 
-                        @if($property->base_price)
+                        @if($status === 'active' && $property->base_price)
                             <div class="mb-3">
-                                <small class="text-muted">Preço Base</small>
-                                <div class="fw-bold text-success">{{ $property->formatted_price }}</div>
+                                <small class="text-muted">Preços</small>
+                                <div class="fw-bold text-success">
+                                    {{ $property->currency }} {{ number_format($property->base_price, 2, ',', '.') }} / noite
+                                </div>
+                                @if($property->cleaning_fee)
+                                    <div class="text-muted small">
+                                        Limpeza: {{ $property->currency }} {{ number_format($property->cleaning_fee, 2, ',', '.') }}
+                                    </div>
+                                @endif
+                                @if($property->security_deposit)
+                                    <div class="text-muted small">
+                                        Caução: {{ $property->currency }} {{ number_format($property->security_deposit, 2, ',', '.') }}
+                                    </div>
+                                @endif
                             </div>
                         @endif
                         
-                        <div class="d-grid">
+                        @if($apiData)
+                            <div class="mb-3">
+                                <small class="text-muted">Dados da API</small>
+                                <div class="text-success small">
+                                    <i class="fas fa-check-circle me-1"></i>Dados atualizados da NextPax
+                                </div>
+                            </div>
+                        @endif
+                        
+                        <div class="d-grid gap-2">
                             <a href="{{ route('properties.show', $property->id) }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-eye me-1"></i> Ver Detalhes
                             </a>
+                            
+                            @if($status === 'draft')
+                                <button class="btn btn-success btn-sm" onclick="activateProperty({{ $property->id }})">
+                                    <i class="fas fa-play me-1"></i> Ativar Propriedade
+                                </button>
+                                <button class="btn btn-warning btn-sm" onclick="configurePricing({{ $property->id }})">
+                                    <i class="fas fa-dollar-sign me-1"></i> Configurar Preços
+                                </button>
+                            @elseif($status === 'active')
+                                <button class="btn btn-outline-info btn-sm" onclick="viewInApi({{ $property->id }})">
+                                    <i class="fas fa-external-link-alt me-1"></i> Ver na API
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" onclick="configurePricing({{ $property->id }})">
+                                    <i class="fas fa-edit me-1"></i> Editar Preços
+                                </button>
+                            @endif
                         </div>
                     </div>
                 </div>
             </div>
         @endforeach
-    @endif
-
-    @if(isset($apiProperties) && count($apiProperties) > 0)
-        @foreach($apiProperties as $property)
-            <div class="col-xl-4 col-md-6 mb-4">
-                <div class="card shadow h-100">
-                    <div class="card-header py-2 d-flex flex-row align-items-center justify-content-between bg-light">
-                        <h6 class="m-0 fw-semibold text-dark text-truncate" title="{{ $property['general']['name'] ?? 'Propriedade NextPax' }}">
-                            {{ $property['general']['name'] ?? 'Propriedade NextPax' }}
-                        </h6>
-                        <span class="badge bg-secondary">API</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-6">
-                                <small class="text-muted">ID</small>
-                                <div class="fw-bold text-truncate" title="{{ $property['propertyId'] ?? 'N/A' }}">{{ $property['propertyId'] ?? 'N/A' }}</div>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted">Status</small>
-                                @php
-                                    $status = strtolower($property['general']['status'] ?? ($property['status'] ?? ''));
-                                    $statusClass = in_array($status, ['active','online','published','enabled']) ? 'success' : (in_array($status, ['disabled','offline']) ? 'secondary' : 'warning');
-                                    $statusLabel = $status ? strtoupper($status) : 'N/A';
-                                @endphp
-                                <div><span class="badge bg-{{ $statusClass }}">{{ $statusLabel }}</span></div>
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-6">
-                                <small class="text-muted">Tipo</small>
-                                @php
-                                    $typeMap = ['APP'=>'Apartamento','HOU'=>'Casa','HOT'=>'Hotel','HST'=>'Hostel','RSR'=>'Resort','VIL'=>'Vila','CAB'=>'Cabana','LOF'=>'Loft'];
-                                    $type = $property['general']['typeCode'] ?? 'APP';
-                                @endphp
-                                <div class="fw-bold">{{ $typeMap[$type] ?? $type }}</div>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted">Ocupação</small>
-                                <div class="fw-bold">{{ $property['general']['maxOccupancy'] ?? 'N/A' }}</div>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <small class="text-muted">Endereço</small>
-                            @php
-                                $addr = $property['general']['address'] ?? [];
-                                $street = $addr['street'] ?? '';
-                                $city = $addr['city'] ?? 'N/A';
-                                $state = $addr['state'] ?? '';
-                                $country = $addr['countryCode'] ?? '';
-                                $postal = $addr['postalCode'] ?? '';
-                                $addressFull = ($street ? $street.', ' : '').$city.($state ? ', '.$state : '').($postal ? ', '.$postal : '').($country ? ', '.$country : '');
-                            @endphp
-                            <div class="fw-bold text-truncate" title="{{ $addressFull }}">{{ $addressFull }}</div>
-                        </div>
-                        @php
-                            $desc = '';
-                            if (!empty($property['descriptions']) && is_array($property['descriptions'])) {
-                                $pt = collect($property['descriptions'])->firstWhere('language', 'PT');
-                                $first = $pt ?: $property['descriptions'][0];
-                                $desc = $first['text'] ?? '';
-                            }
-                            $imagesCount = is_array($property['images'] ?? null) ? count($property['images']) : 0;
-                        @endphp
-                        @if($desc)
-                            <div class="mb-3 small text-muted">{{ Str::limit($desc, 120) }}</div>
-                        @endif
-                        <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">Imagens: <strong>{{ $imagesCount }}</strong></small>
-                            <a href="{{ route('properties.show', $property['propertyId']) }}" class="btn btn-outline-secondary btn-sm">
-                                <i class="fas fa-external-link-alt me-1"></i> Ver na API
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @endforeach
-    @endif
-
-    @if((!isset($localProperties) || count($localProperties) == 0) && (!isset($apiProperties) || count($apiProperties) == 0))
+    @else
         <div class="col-12">
-            <div class="card shadow">
-                <div class="card-body text-center py-5">
-                    <i class="fas fa-home fa-4x text-muted mb-4"></i>
-                    <h3 class="text-muted">Nenhuma propriedade encontrada</h3>
-                    <p class="text-muted mb-4">Comece adicionando sua primeira propriedade para gerenciar reservas e hóspedes.</p>
-                    <a href="{{ route('properties.create') }}" class="btn btn-primary">
-                        <i class="fas fa-plus me-2"></i> Adicionar Primeira Propriedade
-                    </a>
-                </div>
+            <div class="text-center py-5">
+                <i class="fas fa-home fa-3x text-muted mb-3"></i>
+                <h5>Nenhuma propriedade encontrada</h5>
+                <p class="text-muted">Comece criando sua primeira propriedade na NextPax.</p>
+                <a href="{{ route('properties.create') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Criar Primeira Propriedade
+                </a>
             </div>
         </div>
     @endif
 </div>
-@endsection
 
-@section('scripts')
 <script>
-function deleteProperty(propertyId) {
-    if (confirm('Tem certeza que deseja excluir esta propriedade? Esta ação não pode ser desfeita.')) {
-        fetch(`/properties/${propertyId}`, {
-            method: 'DELETE',
+function viewInApi(propertyId) {
+    // Mostrar loading
+    Swal.fire({
+        title: 'Buscando dados da API...',
+        text: 'Aguarde enquanto consultamos a NextPax',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    // Buscar dados da API
+    fetch(`/properties/${propertyId}/api-data`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showApiData(data.data, data.property);
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro!',
+                    text: data.error || 'Erro ao buscar dados da API',
+                    confirmButtonText: 'OK'
+                });
+            }
+        })
+        .catch(error => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Erro!',
+                text: 'Erro ao processar solicitação: ' + error,
+                confirmButtonText: 'OK'
+            });
+        });
+}
+
+function showApiData(apiData, localProperty) {
+    let html = `
+        <div class="text-start">
+            <h6 class="mb-3">Dados da API NextPax</h6>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <strong>Status na API:</strong>
+                        <span class="badge bg-${apiData.status === 'active' ? 'success' : 'warning'} ms-2">
+                            ${apiData.status === 'active' ? 'Ativa' : 'Inativa'}
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <strong>Status Local:</strong>
+                        <span class="badge bg-${localProperty.status === 'active' ? 'success' : 'secondary'} ms-2">
+                            ${localProperty.status === 'active' ? 'Ativa' : 'Draft'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+    `;
+
+    // Dados da propriedade
+    if (apiData.property) {
+        html += `
+            <div class="mb-3">
+                <strong>Dados da Propriedade:</strong>
+                <div class="small text-muted mt-1">
+                    <div>Nome: ${apiData.property.general?.name || 'N/A'}</div>
+                    <div>Tipo: ${apiData.property.general?.typeCode || 'N/A'}</div>
+                    <div>Status: ${apiData.property.general?.status || 'N/A'}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Dados de preços
+    if (apiData.pricing && apiData.pricing.length > 0) {
+        html += `
+            <div class="mb-3">
+                <strong>Preços Configurados:</strong>
+                <div class="small text-muted mt-1">
+                    <div>Moeda: ${apiData.pricing[0]?.currency || 'N/A'}</div>
+                    <div>Tipo: ${apiData.pricing[0]?.pricingType || 'N/A'}</div>
+                    <div>Rates: ${apiData.pricing.length} configuração(ões)</div>
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="mb-3">
+                <strong>Preços:</strong>
+                <span class="text-warning">Não configurados na API</span>
+            </div>
+        `;
+    }
+
+    // Dados de disponibilidade
+    if (apiData.availability && apiData.availability.length > 0) {
+        html += `
+            <div class="mb-3">
+                <strong>Disponibilidade:</strong>
+                <div class="small text-muted mt-1">
+                    <div>Períodos: ${apiData.availability.length}</div>
+                    <div>Status: ${apiData.status === 'active' ? 'Disponível' : 'Indisponível'}</div>
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="mb-3">
+                <strong>Disponibilidade:</strong>
+                <span class="text-warning">Não configurada na API</span>
+            </div>
+        `;
+    }
+
+    // Comparação com dados locais
+    html += `
+        <hr>
+        <div class="mb-3">
+            <strong>Comparação Local vs API:</strong>
+            <div class="small text-muted mt-1">
+                <div>Preço Base: ${localProperty.base_price ? 'R$ ' + localProperty.base_price : 'Não definido'}</div>
+                <div>Moeda: ${localProperty.currency || 'Não definida'}</div>
+                <div>Status: ${localProperty.status === 'active' ? 'Ativa' : 'Draft'}</div>
+            </div>
+        </div>
+    `;
+
+    html += '</div>';
+
+    Swal.fire({
+        title: 'Dados da API NextPax',
+        html: html,
+        width: '600px',
+        confirmButtonText: 'Fechar',
+        showCloseButton: true
+    });
+}
+
+function activateProperty(propertyId) {
+    if (confirm('Tem certeza que deseja ativar esta propriedade na NextPax? Ela ficará disponível para reservas.')) {
+        fetch(`/properties/${propertyId}/activate`, {
+            method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Content-Type': 'application/json'
             }
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('Propriedade excluída com sucesso!');
-                location.reload();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Sucesso!',
+                    text: data.message,
+                    confirmButtonText: 'OK'
+                }).then(() => {
+                    location.reload();
+                });
             } else {
-                alert('Erro ao excluir propriedade: ' + data.error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro!',
+                    text: data.error,
+                    confirmButtonText: 'OK'
+                });
             }
         })
         .catch(error => {
-            alert('Erro ao processar solicitação: ' + error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Erro!',
+                text: 'Erro ao processar solicitação: ' + error,
+                confirmButtonText: 'OK'
+            });
         });
     }
+}
+
+function configurePricing(propertyId) {
+    // Abrir modal de configuração de preços
+    Swal.fire({
+        title: 'Configurar Preços da Propriedade',
+        html: `
+            <form id="pricingForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Preço Base (por noite)</label>
+                            <input type="number" class="form-control" id="base_price" name="base_price" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Moeda</label>
+                            <select class="form-select" id="currency" name="currency" required>
+                                <option value="BRL">BRL (Real)</option>
+                                <option value="USD">USD (Dólar)</option>
+                                <option value="EUR">EUR (Euro)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Taxa de Limpeza</label>
+                            <input type="number" class="form-control" id="cleaning_fee" name="cleaning_fee" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Caução</label>
+                            <input type="number" class="form-control" id="security_deposit" name="security_deposit" step="0.01" min="0">
+                        </div>
+                    </div>
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Salvar Preços',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const form = document.getElementById('pricingForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Validação básica
+            if (!data.base_price || data.base_price <= 0) {
+                Swal.showValidationMessage('Preço base é obrigatório e deve ser maior que zero');
+                return false;
+            }
+            
+            return data;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Enviar dados para o servidor
+            fetch(`/properties/${propertyId}/pricing`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(result.value)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Sucesso!',
+                        text: data.message,
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Erro!',
+                        text: data.error,
+                        confirmButtonText: 'OK'
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro!',
+                    text: 'Erro ao processar solicitação: ' + error,
+                    confirmButtonText: 'OK'
+                });
+            });
+        }
+    });
 }
 </script>
 @endsection 

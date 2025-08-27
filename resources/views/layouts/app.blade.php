@@ -349,6 +349,9 @@
         </main>
     </div>
 
+    <!-- SweetAlert2 para notificações -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <!-- jQuery (necessário para alguns componentes do Bootstrap) -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     
