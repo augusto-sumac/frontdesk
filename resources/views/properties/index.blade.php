@@ -198,6 +198,9 @@
                             <a href="{{ route('properties.show', $property->id) }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-eye me-1"></i> Ver Detalhes
                             </a>
+                            <a href="{{ route('properties.channels.index', $property->id) }}" class="btn btn-info btn-sm">
+                                <i class="fas fa-broadcast-tower me-1"></i> Gerenciar Canais
+                            </a>
                             
                             @if($status === 'draft')
                                 <button class="btn btn-success btn-sm" onclick="activateProperty({{ $property->id }})">

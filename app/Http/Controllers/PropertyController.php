@@ -35,6 +35,7 @@ class PropertyController extends Controller
             // Carregar propriedades locais (que já foram criadas via API)
             $localProperties = Property::where('channel_type', 'nextpax')
                 ->whereNotNull('channel_property_id')
+                ->where('property_manager_code', $propertyManagerCode)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -221,6 +222,7 @@ class PropertyController extends Controller
                 'longitude' => $data['longitude'],
                 'channel_type' => 'nextpax',
                 'channel_property_id' => $nextPaxPropertyId,
+                'property_manager_code' => $propertyManagerCode,
                 'is_active' => false, // Inicialmente inativo
                 'status' => 'draft', // Status inicial: rascunho
             ]);

@@ -6,6 +6,10 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ChannelController;
+use App\Http\Controllers\PropertyChannelController;
+use App\Http\Controllers\WebhookController;
+use App\Http\Controllers\AdminDashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,6 +24,15 @@ use App\Http\Controllers\AdminController;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+// ===== WEBHOOKS (sem middleware de autenticação) =====
+Route::prefix('webhooks')->group(function () {
+    Route::post('/airbnb', [WebhookController::class, 'airbnb'])->name('webhooks.airbnb');
+    Route::post('/booking', [WebhookController::class, 'booking'])->name('webhooks.booking');
+    Route::post('/homeaway', [WebhookController::class, 'homeaway'])->name('webhooks.homeaway');
+    Route::post('/vrbo', [WebhookController::class, 'vrbo'])->name('webhooks.vrbo');
+    Route::post('/nextpax', [WebhookController::class, 'nextpax'])->name('webhooks.nextpax');
 });
 
 // Rotas de autenticação
@@ -84,6 +97,40 @@ Route::middleware(['auth','tenant'])->group(function () {
         // Quartos (subrooms) - keeping for backward compatibility
         Route::get('/{propertyId}/subrooms', [DashboardController::class, 'subrooms'])->name('properties.subrooms');
         Route::post('/{propertyId}/subrooms', [DashboardController::class, 'createSubroom'])->name('properties.subrooms.create');
+        
+        // ===== CANAIS DE DISTRIBUIÇÃO =====
+        Route::prefix('{propertyId}/channels')->group(function () {
+            Route::get('/', [PropertyChannelController::class, 'index'])->name('properties.channels.index');
+            Route::get('/create/{channel}', [PropertyChannelController::class, 'create'])->name('properties.channels.create');
+            Route::post('/store/{channel}', [PropertyChannelController::class, 'store'])->name('properties.channels.store');
+            Route::get('/{channel}', [PropertyChannelController::class, 'show'])->name('properties.channels.show');
+            Route::get('/{channel}/edit', [PropertyChannelController::class, 'edit'])->name('properties.channels.edit');
+            Route::put('/{channel}', [PropertyChannelController::class, 'update'])->name('properties.channels.update');
+            Route::delete('/{channel}', [PropertyChannelController::class, 'destroy'])->name('properties.channels.destroy');
+            Route::post('/{channel}/sync', [PropertyChannelController::class, 'sync'])->name('properties.channels.sync');
+            Route::post('/{channel}/toggle-active', [PropertyChannelController::class, 'toggleActive'])->name('properties.channels.toggle-active');
+            Route::post('/{channel}/toggle-auto-sync', [PropertyChannelController::class, 'toggleAutoSync'])->name('properties.channels.toggle-auto-sync');
+            Route::get('/statistics', [PropertyChannelController::class, 'statistics'])->name('properties.channels.statistics');
+        });
+    });
+    
+    // ===== CANAIS GLOBAIS =====
+    Route::prefix('channels')->middleware('tenant')->group(function () {
+        Route::get('/', [ChannelController::class, 'index'])->name('channels.index');
+        Route::get('/create', [ChannelController::class, 'create'])->name('channels.create');
+        Route::post('/', [ChannelController::class, 'store'])->name('channels.store');
+        Route::get('/{channel}', [ChannelController::class, 'show'])->name('channels.show');
+        Route::get('/{channel}/properties', [ChannelController::class, 'properties'])->name('channels.properties');
+        Route::post('/{channel}/sync', [ChannelController::class, 'syncProperties'])->name('channels.sync');
+        Route::get('/{channel}/edit', [ChannelController::class, 'edit'])->name('channels.edit');
+        Route::put('/{channel}', [ChannelController::class, 'update'])->name('channels.update');
+        Route::delete('/{channel}', [ChannelController::class, 'destroy'])->name('channels.destroy');
+        Route::post('/{channel}/connect-property', [ChannelController::class, 'connectProperty'])->name('channels.connect-property');
+        Route::delete('/{channel}/disconnect-property/{property}', [ChannelController::class, 'disconnectProperty'])->name('channels.disconnect-property');
+        Route::put('/{channel}/update-property/{property}', [ChannelController::class, 'updatePropertyChannel'])->name('channels.update-property');
+        Route::post('/{channel}/sync-property/{property}', [ChannelController::class, 'syncProperty'])->name('channels.sync-property');
+        Route::get('/available/{property}', [ChannelController::class, 'getAvailableChannels'])->name('channels.available');
+        Route::get('/status/{channel}/{property}', [ChannelController::class, 'getPropertyChannelStatus'])->name('channels.status');
     });
     
     // ===== MENSAGENS CRUD =====
@@ -101,9 +148,10 @@ Route::middleware(['auth','tenant'])->group(function () {
     
     // ===== ADMINISTRAÇÃO =====
     Route::prefix('admin')->middleware(['admin'])->group(function () {
-        Route::get('/', function () {
-            return view('admin.dashboard');
-        })->name('admin.dashboard');
+        Route::get('/', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
+        Route::get('/channels', [AdminDashboardController::class, 'channels'])->name('admin.channels');
+        Route::get('/reports', [AdminDashboardController::class, 'reports'])->name('admin.reports');
+        Route::get('/monitoring', [AdminDashboardController::class, 'monitoring'])->name('admin.monitoring');
         
         Route::prefix('users')->group(function () {
             Route::get('/', [AdminController::class, 'index'])->name('admin.users.index');

@@ -422,4 +422,68 @@ class NextPaxService
             ];
         }
     }
+
+    // Channel Management Methods
+    
+    /**
+     * Get properties with channel configuration (uses same endpoint as getProperties)
+     */
+    public function getPropertiesWithChannels($propertyManager = null)
+    {
+        // Usar o mesmo método que já funciona
+        return $this->getProperties($propertyManager);
+    }
+    
+    /**
+     * Get property channel status from NextPax
+     */
+    public function getPropertyChannelStatus($propertyId)
+    {
+        try {
+            // Usar endpoint de channel management se disponível
+            return $this->makeRequest('GET', "/channel-management/property/{$propertyId}");
+        } catch (\Exception $e) {
+            // Fallback para endpoint de propriedade normal
+            try {
+                $property = $this->getProperty($propertyId);
+                if (isset($property['property'])) {
+                    return [
+                        'property' => $property['property'],
+                        'channels' => $property['property']['channels'] ?? []
+                    ];
+                }
+                return $property;
+            } catch (\Exception $fallbackException) {
+                Log::error('Erro ao buscar status do canal da propriedade:', [
+                    'property_id' => $propertyId,
+                    'error' => $e->getMessage(),
+                    'fallback_error' => $fallbackException->getMessage()
+                ]);
+                
+                return [
+                    'error' => 'Erro ao buscar status: ' . $e->getMessage()
+                ];
+            }
+        }
+    }
+    
+    /**
+     * Update property channel configuration
+     */
+    public function updatePropertyChannelConfig($propertyId, $channelData)
+    {
+        try {
+            return $this->makeRequest('PUT', "/channel-management/property/{$propertyId}", $channelData);
+        } catch (\Exception $e) {
+            Log::error('Erro ao atualizar configuração do canal:', [
+                'property_id' => $propertyId,
+                'channel_data' => $channelData,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'error' => 'Erro ao atualizar configuração: ' . $e->getMessage()
+            ];
+        }
+    }
 } 

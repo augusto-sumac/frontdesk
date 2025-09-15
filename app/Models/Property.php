@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\Storage;
 
 class Property extends Model
@@ -16,6 +17,7 @@ class Property extends Model
         'property_id',
         'channel_type',
         'channel_property_id',
+        'property_manager_code',
         'supplier_property_id',
         'address',
         'city',
@@ -107,6 +109,33 @@ class Property extends Model
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class, 'property_id', 'property_id');
+    }
+
+    public function channels(): BelongsToMany
+    {
+        return $this->belongsToMany(Channel::class, 'property_channels')
+                    ->withPivot([
+                        'channel_property_id',
+                        'channel_room_id',
+                        'channel_status',
+                        'content_status',
+                        'property_status_note',
+                        'channel_property_url',
+                        'channel_config',
+                        'sync_settings',
+                        'is_active',
+                        'auto_sync_enabled',
+                        'last_sync_at',
+                        'last_successful_sync_at',
+                        'last_sync_error',
+                        'sync_attempts'
+                    ])
+                    ->withTimestamps();
+    }
+
+    public function propertyChannels(): HasMany
+    {
+        return $this->hasMany(PropertyChannel::class);
     }
 
     public function mainImage()
@@ -258,5 +287,204 @@ class Property extends Model
     public function hasCoordinates(): bool
     {
         return !empty($this->coordinates);
+    }
+
+    // Channel-related methods
+    public function isConnectedToChannel(string $channelId): bool
+    {
+        return $this->channels()->where('channels.channel_id', $channelId)->exists();
+    }
+
+    public function getChannelConnection(string $channelId): ?PropertyChannel
+    {
+        return $this->propertyChannels()
+            ->whereHas('channel', function($query) use ($channelId) {
+                $query->where('channel_id', $channelId);
+            })
+            ->first();
+    }
+
+    public function getActiveChannels()
+    {
+        return $this->channels()->wherePivot('is_active', true)->get();
+    }
+
+    public function getChannelStatus(string $channelId): ?string
+    {
+        $connection = $this->getChannelConnection($channelId);
+        return $connection ? $connection->channel_status : null;
+    }
+
+    public function getChannelPropertyId(string $channelId): ?string
+    {
+        $connection = $this->getChannelConnection($channelId);
+        return $connection ? $connection->channel_property_id : null;
+    }
+
+    public function canSyncWithChannel(string $channelId): bool
+    {
+        $connection = $this->getChannelConnection($channelId);
+        return $connection ? $connection->canSync() : false;
+    }
+
+    public function getConnectedChannelsCount(): int
+    {
+        return $this->channels()->count();
+    }
+
+    public function getActiveChannelsCount(): int
+    {
+        return $this->channels()->wherePivot('is_active', true)->count();
+    }
+
+    public function hasAnyActiveChannel(): bool
+    {
+        return $this->getActiveChannelsCount() > 0;
+    }
+
+    public function getChannelUrls(): array
+    {
+        $urls = [];
+        foreach ($this->propertyChannels as $propertyChannel) {
+            if ($propertyChannel->channel_property_url) {
+                $urls[$propertyChannel->channel->name] = $propertyChannel->channel_property_url;
+            }
+        }
+        return $urls;
+    }
+
+    /**
+     * Boot method para sincronização automática com canais
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Quando uma propriedade é criada, conectá-la automaticamente aos canais ativos
+        static::created(function ($property) {
+            if ($property->status === 'active') {
+                $property->syncWithActiveChannels();
+            }
+        });
+
+        // Quando uma propriedade é atualizada para ativa, conectá-la aos canais
+        static::updated(function ($property) {
+            if ($property->isDirty('status') && $property->status === 'active') {
+                $property->syncWithActiveChannels();
+            }
+        });
+    }
+
+    /**
+     * Sincronizar propriedade com canais ativos
+     */
+    public function syncWithActiveChannels()
+    {
+        $activeChannels = Channel::where('is_active', true)->get();
+        
+        foreach ($activeChannels as $channel) {
+            // Verificar se já existe conexão
+            $existingConnection = PropertyChannel::where('property_id', $this->id)
+                ->where('channel_id', $channel->id)
+                ->first();
+
+            if (!$existingConnection) {
+                // Criar conexão automática
+                $connectionData = $this->createChannelConnectionData($channel);
+                
+                PropertyChannel::create([
+                    'property_id' => $this->id,
+                    'channel_id' => $channel->id,
+                    'is_active' => true,
+                    'auto_sync_enabled' => true,
+                    'channel_status' => 'active',
+                    'content_status' => 'enabled',
+                    'channel_property_id' => $connectionData['channel_property_id'],
+                    'channel_config' => $connectionData['channel_config'],
+                    'last_sync_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Criar dados de conexão para um canal específico
+     */
+    private function createChannelConnectionData(Channel $channel): array
+    {
+        $baseData = [
+            'channel_property_id' => strtolower($channel->slug) . '-' . $this->id,
+            'channel_config' => [
+                'property_id' => strtolower($channel->slug) . '-' . $this->id,
+                'sync_enabled' => true,
+                'auto_created' => true,
+            ],
+        ];
+
+        // Dados específicos por canal
+        switch ($channel->channel_id) {
+            case 'AIR298': // Airbnb
+                return [
+                    'channel_property_id' => 'airbnb-' . $this->id,
+                    'channel_config' => [
+                        'listing_id' => 'airbnb-' . $this->id,
+                        'sync_enabled' => true,
+                        'auto_created' => true,
+                    ],
+                ];
+
+            case 'BOO142': // Booking.com
+                return [
+                    'channel_property_id' => 'booking-' . $this->id,
+                    'channel_config' => [
+                        'property_id' => 'booking-' . $this->id,
+                        'sync_enabled' => true,
+                        'auto_created' => true,
+                    ],
+                ];
+
+            case 'HOM143': // HomeAway
+                return [
+                    'channel_property_id' => 'homeaway-' . $this->id,
+                    'channel_config' => [
+                        'property_id' => 'homeaway-' . $this->id,
+                        'sync_enabled' => true,
+                        'auto_created' => true,
+                    ],
+                ];
+
+            case 'EXP001': // Expedia
+                return [
+                    'channel_property_id' => 'expedia-' . $this->id,
+                    'channel_config' => [
+                        'property_id' => 'expedia-' . $this->id,
+                        'sync_enabled' => true,
+                        'auto_created' => true,
+                    ],
+                ];
+
+            case 'VRB001': // VRBO
+                return [
+                    'channel_property_id' => 'vrbo-' . $this->id,
+                    'channel_config' => [
+                        'property_id' => 'vrbo-' . $this->id,
+                        'sync_enabled' => true,
+                        'auto_created' => true,
+                    ],
+                ];
+
+            case 'DIRECT': // Reserva Direta
+                return [
+                    'channel_property_id' => 'direct-' . $this->id,
+                    'channel_config' => [
+                        'property_id' => 'direct-' . $this->id,
+                        'sync_enabled' => true,
+                        'auto_created' => true,
+                    ],
+                ];
+
+            default:
+                return $baseData;
+        }
     }
 }

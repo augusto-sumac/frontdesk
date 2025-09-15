@@ -79,6 +79,7 @@ class DashboardController extends Controller
 
             // Load properties from database (with supplierPropertyId)
             $properties = Property::where('channel_type', 'nextpax')
+                ->where('property_manager_code', $propertyId)
                 ->select(
                     'id as localId', 
                     'property_id as id', 
@@ -996,6 +997,7 @@ class DashboardController extends Controller
 
             // Buscar propriedades do usuário
             $properties = Property::where('channel_type', 'nextpax')
+                ->where('property_manager_code', $propertyManagerCode)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get();

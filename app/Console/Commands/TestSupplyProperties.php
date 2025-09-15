@@ -31,7 +31,7 @@ class TestSupplyProperties extends Command
         $nextPaxService = new NextPaxService();
 
         // Test with different property managers
-        $propertyManagers = ['SAFDK000034', 'SAFDK000036'];
+        $propertyManagers = ['SAFDK000046', 'SAFDK000034', 'SAFDK000036'];
 
         foreach ($propertyManagers as $pm) {
             $this->info("Testing property manager: {$pm}");

@@ -277,6 +277,12 @@
                             Relatórios
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('channels.*') ? 'active' : '' }}" href="{{ route('channels.index') }}">
+                            <i class="fas fa-broadcast-tower"></i>
+                            Canais
+                        </a>
+                    </li>
                     
                     @if(auth()->user() && auth()->user()->role === 'admin')
                         <li class="nav-item">
