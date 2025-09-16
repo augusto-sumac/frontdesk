@@ -1,6 +1,99 @@
-@import 'bootstrap/dist/css/bootstrap.min.css';
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
 
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-@source '../**/*.blade.php';
-@source '../**/*.js';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* TailAdmin Menu Styles */
+.menu-item {
+  @apply relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-300;
+}
+
+.menu-item-active {
+  @apply bg-brand-50 text-brand-600 dark:bg-brand-900 dark:text-brand-400;
+}
+
+.menu-item-inactive {
+  @apply text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300;
+}
+
+.menu-item-icon-active {
+  @apply fill-brand-500 dark:fill-brand-400;
+}
+
+.menu-item-icon-inactive {
+  @apply fill-gray-400 group-hover:fill-gray-600 dark:fill-gray-500 dark:group-hover:fill-gray-400;
+}
+
+.menu-item-text {
+  @apply transition-all duration-300;
+}
+
+.menu-item-arrow {
+  @apply absolute right-2.5 top-1/2 -translate-y-1/2 stroke-current transition-all duration-300;
+}
+
+.menu-item-arrow-active {
+  @apply stroke-brand-500 dark:stroke-brand-400;
+}
+
+.menu-item-arrow-inactive {
+  @apply stroke-gray-400 group-hover:stroke-gray-600 dark:stroke-gray-500 dark:group-hover:stroke-gray-400;
+}
+
+.menu-dropdown {
+  @apply flex flex-col gap-1 mt-2;
+}
+
+.menu-dropdown-item {
+  @apply relative flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-300;
+}
+
+.menu-dropdown-item-active {
+  @apply bg-brand-50 text-brand-600 dark:bg-brand-900 dark:text-brand-400;
+}
+
+.menu-dropdown-item-inactive {
+  @apply text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300;
+}
+
+.menu-group-title {
+  @apply transition-all duration-300;
+}
+
+.menu-group-icon {
+  @apply transition-all duration-300;
+}
+
+/* Sidebar Styles */
+.sidebar {
+  @apply transition-all duration-300 ease-linear;
+}
+
+.sidebar-header {
+  @apply transition-all duration-300;
+}
+
+.logo {
+  @apply transition-all duration-300;
+}
+
+.logo-icon {
+  @apply transition-all duration-300;
+}
+
+/* Scrollbar Styles */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@layer base {
+  html {
+    font-family: 'Outfit', sans-serif;
+  }
+}

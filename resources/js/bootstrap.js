@@ -1,5 +1,4 @@
 import axios from 'axios';
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 
 window.axios = axios;
 

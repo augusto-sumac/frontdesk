@@ -24,7 +24,7 @@ use App\Http\Controllers\AdminDashboardController;
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('welcome');
 
 // ===== WEBHOOKS (sem middleware de autenticação) =====
 Route::prefix('webhooks')->group(function () {
